@@ -27,7 +27,7 @@ Az automatikus felismerés biztonságosra van tervezve:
 
 A program helyes működéséhez jelenleg ez a kiosztás az elvárt:
 
-```text
+
 eDP            connected primary
 HDMI-A-0       connected / Soundbar
 DisplayPort-1  connected / TV
