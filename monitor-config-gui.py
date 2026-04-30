@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-#########  2026. április 08 ##########
+#########  2026. április 30 ##########
 
+# ---- Fejlesztői verzió !! ---------
 
 # Ha Waylandot is szeretnél használni, ezt javítsd!!!:
 
