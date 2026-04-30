@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.bak
+*.tmp
+.DS_Store
+.vscode/
+EOF
