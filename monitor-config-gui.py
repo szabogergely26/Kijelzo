@@ -28,8 +28,8 @@ from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtCore import Qt
 
 # ============================== App meta ======================================
-APP_NAME = "Display Switcher"
-APP_VERSION = "3.0"
+APP_NAME = "Kijelző váltó - Fehlesztői"
+APP_VERSION = "4.0"
 
 # -- DRY RUN: ha --dry paraméterrel indítod, csak logolunk, nem futtatunk parancsot
 DRY_RUN = "--dry" in sys.argv
@@ -657,7 +657,7 @@ class MonitorSetupApp(QWidget):
         
 
         # Címsor
-        self.setWindowTitle("Kijelző beállítások" + (" — DRY RUN" if DRY_RUN else ""))
+        self.setWindowTitle("Kijelző beállítások - Fejlesztői verzió" + (" — DRY RUN" if DRY_RUN else ""))
 
         # Fő layout (csak egyszer!)
         existing = self.layout()
