@@ -71,3 +71,24 @@ A Soundbar HDMI-eszközként kijelzőnek látszik, de elsődlegesen audio célra
 ## Live ellenőrzéshez:
 
 tail -f /tmp/monitor_config.log
+
+
+
+
+
+
+
+## FONTOS!:
+
+## Ismert KDE / TV kijelzőkezelési probléma
+
+A TV-re történő kiterjesztett asztal beállítása KDE Plasma alatt nem mindig működik megbízhatóan.
+
+Fontos megállapítás:
+- a hiba nem kizárólag a saját monitor-config scriptben jelentkezik;
+- a KDE gyári kijelzőbeállításai is ugyanazt a hibás elrendezést produkálják;
+- a Soundbar kikapcsolása / kihúzása után, csak TV-vel is előfordul;
+- X11 alatt is jelentkezik.
+
+Következtetés:
+A probléma valószínűleg KDE/KScreen, EDID, HDMI/TV vagy driver oldali, nem az alkalmazáslogika hibája.

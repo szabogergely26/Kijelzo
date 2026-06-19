@@ -105,25 +105,25 @@ X11_PROFILES = {
 
     "Laptop + Soundbar": {
         "commands": [
-            "xrandr --output DisplayPort-1 --off",
+            "xrandr --output HDMI-A-0 --off",
             "sleep 0.5",
             "xrandr --output eDP --primary --mode 1920x1200 --pos 0x0",
             "sleep 0.5",
-            "xrandr --output HDMI-A-0 --mode 1280x720 --pos 1920x0",
+            "xrandr --output DisplayPort-1 --mode 1280x720 --same-as eDP",
         ],
-        "description": "Laptop + Soundbar, TV kikapcsolva, Soundbar jobbra eltolva.",
+        "description": "Laptop + Soundbar, a soundbar a laptop kijelzőt tükrözi.",
     },
 
-   "Laptop + TV + Soundbar": {
-    "commands": [
-        "xrandr --output DisplayPort-1 --mode 3840x2160 --rate 30 --pos 0x0",
-        "sleep 0.5",
-        "xrandr --output eDP --primary --mode 1920x1200 --pos 960x2160",
-        "sleep 0.5",
-        "xrandr --output HDMI-A-0 --mode 1280x720 --pos 3840x0",
-    ],
-    "description": "TV + laptop + Soundbar.",
-},
+    "Laptop + TV + Soundbar": {
+        "commands": [
+            "xrandr --output HDMI-A-0 --mode 3840x2160 --rate 60 --pos 0x0",
+            "sleep 0.5",
+            "xrandr --output eDP --primary --mode 1920x1200 --pos 960x2160",
+            "sleep 0.5",
+            "xrandr --output DisplayPort-1 --mode 1280x720 --same-as eDP",
+        ],
+        "description": "TV felül, laptop alul középen, soundbar a laptop kijelzőt tükrözi.",
+    },
 }
 
 
