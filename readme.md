@@ -8,7 +8,7 @@ A program célja, hogy gyorsan lehessen váltani a ThinkPad kijelző, a Soundbar
 
 Jelenlegi állapot: működő köztes verzió.
 
-A program jelenleg X11-re van használva.  
+A program jelenleg X11-re van használva.
 A Wayland / `kscreen-doctor` ág a kódban részben jelen van, de jelenleg nincs aktív használatban.
 
 ## Jelenlegi célhardver
@@ -48,7 +48,7 @@ sudo apt install python3-gi gir1.2-notify-0.7 libnotify-bin
 ## Jelenlegi struktúra
 
 ~/Kijelzo/
-  monitor-config-gui.py
+  monitor-config.py
   kijelzo.sh
   README.md
   .gitignore
