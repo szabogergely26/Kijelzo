@@ -659,7 +659,7 @@ class MonitorSetupApp(QWidget):
 
 
         # Címsor
-        self.setWindowTitle("Kijelző beállítások - Fejlesztői verzió" + (" — DRY RUN" if DRY_RUN else ""))
+        self.setWindowTitle("Kijelző beállítások - Előzetes verzió" + (" — DRY RUN" if DRY_RUN else ""))
 
         # Fő layout (csak egyszer!)
         existing = self.layout()

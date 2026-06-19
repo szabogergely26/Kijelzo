@@ -1,4 +1,4 @@
-# Monitor-config / Kijelző profilváltó  - Fejlesztői verzió
+# Monitor-config / Kijelző profilváltó  - Előzetes verzió
 
 Saját használatra készült egyszerű PyQt5 alapú kijelzőprofil-váltó KDE Plasma / X11 környezethez.
 
