@@ -15,6 +15,9 @@ mkdir -p "$OUTPUT_DIR"
 cp packaging/deb/control "$BUILD_DIR/DEBIAN/control"
 cp -a packaging/deb/root/. "$BUILD_DIR/"
 
+# Mindig az aktuális ág fő programfájlját csomagoljuk.
+cp monitor_config.py "$BUILD_DIR/usr/share/monitor-config/monitor_config.py"
+
 find "$BUILD_DIR" -type d -exec chmod 755 {} \;
 
 # jogosultság beállítása

@@ -1,16 +1,18 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-#########  2026. április 30 ##########
+#########  2026.06.19 ##########
 
-# ---- Fejlesztői verzió !! ---------
+"""
+---- Végleges verzió ! ----
 
-# Ha Waylandot is szeretnél használni, ezt javítsd!!!:
+ Ha Waylandot is szeretnél használni, ezt javítsd!!!:
 
-#  if p.returncode == 0:
-# if not is_wayland():
-    #   ...
-    #    p = subprocess.run(...)
+  if p.returncode == 0:
+ if not is_wayland():
+       ...
+        p = subprocess.run(...)
 
+"""
 
 import sys
 import subprocess
@@ -28,8 +30,8 @@ from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtCore import Qt
 
 # ============================== App meta ======================================
-APP_NAME = "Kijelző váltó - Fehlesztői"
-APP_VERSION = "4.0"
+APP_NAME = "Display Switcher"
+APP_VERSION = "3.0"
 
 # -- DRY RUN: ha --dry paraméterrel indítod, csak logolunk, nem futtatunk parancsot
 DRY_RUN = "--dry" in sys.argv
@@ -105,25 +107,25 @@ X11_PROFILES = {
 
     "Laptop + Soundbar": {
         "commands": [
-            "xrandr --output HDMI-A-0 --off",
+            "xrandr --output DisplayPort-1 --off",
             "sleep 0.5",
             "xrandr --output eDP --primary --mode 1920x1200 --pos 0x0",
             "sleep 0.5",
-            "xrandr --output DisplayPort-1 --mode 1280x720 --same-as eDP",
+            "xrandr --output HDMI-A-0 --mode 1280x720 --pos 1920x0",
         ],
-        "description": "Laptop + Soundbar, a soundbar a laptop kijelzőt tükrözi.",
+        "description": "Laptop + Soundbar, TV kikapcsolva, Soundbar jobbra eltolva.",
     },
 
-    "Laptop + TV + Soundbar": {
-        "commands": [
-            "xrandr --output HDMI-A-0 --mode 3840x2160 --rate 60 --pos 0x0",
-            "sleep 0.5",
-            "xrandr --output eDP --primary --mode 1920x1200 --pos 960x2160",
-            "sleep 0.5",
-            "xrandr --output DisplayPort-1 --mode 1280x720 --same-as eDP",
-        ],
-        "description": "TV felül, laptop alul középen, soundbar a laptop kijelzőt tükrözi.",
-    },
+   "Laptop + TV + Soundbar": {
+    "commands": [
+        "xrandr --output DisplayPort-1 --mode 3840x2160 --rate 30 --pos 0x0",
+        "sleep 0.5",
+        "xrandr --output eDP --primary --mode 1920x1200 --pos 960x2160",
+        "sleep 0.5",
+        "xrandr --output HDMI-A-0 --mode 1280x720 --pos 3840x0",
+    ],
+    "description": "TV + laptop + Soundbar.",
+},
 }
 
 
@@ -654,10 +656,10 @@ class MonitorSetupApp(QWidget):
         self.log_file = log_open()
         self.display_server = (os.environ.get("XDG_SESSION_TYPE") or "x11").lower()
         log(self.log_file, f"Display Server: {self.display_server}")
-        
+
 
         # Címsor
-        self.setWindowTitle("Kijelző beállítások - Fejlesztői verzió" + (" — DRY RUN" if DRY_RUN else ""))
+        self.setWindowTitle("Kijelző beállítások" + (" — DRY RUN" if DRY_RUN else ""))
 
         # Fő layout (csak egyszer!)
         existing = self.layout()
@@ -709,7 +711,7 @@ class MonitorSetupApp(QWidget):
         self.b1 = QPushButton("💻  Laptop (csak)")
         self.b2 = QPushButton("💻 🔊  Laptop + Soundbar")
         self.b3 = QPushButton("💻 📺 🔊  Laptop + TV + Soundbar")
-        
+
         auto_row = QHBoxLayout()
         auto_row.addWidget(self.b_auto, 0, Qt.AlignLeft)
         auto_row.addStretch()
@@ -722,7 +724,7 @@ class MonitorSetupApp(QWidget):
         for b in (self.b1, self.b2, self.b3):
             b.setMinimumHeight(40)
             b.setFixedWidth(220)
-           
+
             row = QHBoxLayout()
             row.addStretch()
             row.addWidget(b)
@@ -730,9 +732,9 @@ class MonitorSetupApp(QWidget):
 
             self.lay.addLayout(row)
 
-            
 
-    
+
+
         self.b_auto.clicked.connect(self.auto_detect_and_apply)
         self.b1.clicked.connect(lambda: self.apply_profile("Laptop (csak)"))
         self.b2.clicked.connect(lambda: self.apply_profile("Laptop + Soundbar"))
@@ -891,7 +893,7 @@ class MonitorSetupApp(QWidget):
 
                 notify("Kijelző beállítva", "Profil alkalmazva (X11).", "normal", 4000, self.log_file)
                 return
-            
+
 
 
 
