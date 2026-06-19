@@ -48,7 +48,7 @@ sudo apt install python3-gi gir1.2-notify-0.7 libnotify-bin
 ## Jelenlegi struktúra
 
 ~/Kijelzo/
-  monitor-config-gui.py
+  monitor_config.py
   kijelzo.sh
   README.md
   .gitignore
