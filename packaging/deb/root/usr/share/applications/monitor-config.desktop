@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Monitor Config
+Comment=Kijelző- és média profilok kezelése
+Exec=monitor-config
+Icon=preferences-desktop-display
+Terminal=false
+Categories=Settings;HardwareSettings;Qt;
