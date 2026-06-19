@@ -1,16 +1,18 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-#########  2026. április 30 ##########
+#########  2026.06.30 ##########
 
-# ---- Fejlesztői verzió !! ---------
+"""
+ ---- Fejlesztői verzió !! ---------
 
-# Ha Waylandot is szeretnél használni, ezt javítsd!!!:
+ Ha Waylandot is szeretnél használni, ezt javítsd!!!:
 
-#  if p.returncode == 0:
-# if not is_wayland():
-    #   ...
-    #    p = subprocess.run(...)
+if p.returncode == 0:
+ if not is_wayland():
+       ...
+        p = subprocess.run(...)
 
+"""
 
 import sys
 import subprocess
@@ -654,7 +656,7 @@ class MonitorSetupApp(QWidget):
         self.log_file = log_open()
         self.display_server = (os.environ.get("XDG_SESSION_TYPE") or "x11").lower()
         log(self.log_file, f"Display Server: {self.display_server}")
-        
+
 
         # Címsor
         self.setWindowTitle("Kijelző beállítások - Fejlesztői verzió" + (" — DRY RUN" if DRY_RUN else ""))
@@ -709,7 +711,7 @@ class MonitorSetupApp(QWidget):
         self.b1 = QPushButton("💻  Laptop (csak)")
         self.b2 = QPushButton("💻 🔊  Laptop + Soundbar")
         self.b3 = QPushButton("💻 📺 🔊  Laptop + TV + Soundbar")
-        
+
         auto_row = QHBoxLayout()
         auto_row.addWidget(self.b_auto, 0, Qt.AlignLeft)
         auto_row.addStretch()
@@ -722,7 +724,7 @@ class MonitorSetupApp(QWidget):
         for b in (self.b1, self.b2, self.b3):
             b.setMinimumHeight(40)
             b.setFixedWidth(220)
-           
+
             row = QHBoxLayout()
             row.addStretch()
             row.addWidget(b)
@@ -730,9 +732,9 @@ class MonitorSetupApp(QWidget):
 
             self.lay.addLayout(row)
 
-            
 
-    
+
+
         self.b_auto.clicked.connect(self.auto_detect_and_apply)
         self.b1.clicked.connect(lambda: self.apply_profile("Laptop (csak)"))
         self.b2.clicked.connect(lambda: self.apply_profile("Laptop + Soundbar"))
@@ -891,7 +893,7 @@ class MonitorSetupApp(QWidget):
 
                 notify("Kijelző beállítva", "Profil alkalmazva (X11).", "normal", 4000, self.log_file)
                 return
-            
+
 
 
 
