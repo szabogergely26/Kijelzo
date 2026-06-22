@@ -20,7 +20,6 @@ Csak kiírja / logolja, hogy mit csinálna.
 """
 
 import sys
-import subprocess
 import os
 import time
 import re
@@ -40,6 +39,8 @@ from monitor_config.profiles import X11_PROFILES
 from .version_info import APP_NAME, APP_CHANNEL, APP_VERSION, get_display_version
 from .config import DRY_RUN
 from .autodetect import normalize_connected_outputs, select_profile_from_outputs
+from .command_utils import run_cmd
+from .x11 import run_x11_commands, x11_connected_outputs, detect_current_active_setup
 
 
 # ============================== Libnotify =====================================
@@ -52,10 +53,6 @@ except Exception:
     _HAS_GI_NOTIFY = False
 
 
-# ============================== ANSI strip ====================================
-ANSI_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-def strip_ansi(s: str) -> str:
-    return ANSI_RE.sub("", s or "")
 
 # ============================== Kimenet/Segédek ===============================
 EDP_NAME  = "eDP-1"        # laptop panel
@@ -74,41 +71,7 @@ HDMI_POS      = (0, 0)
 
 
 
-def run_x11_commands(commands, logf):
-    if DRY_RUN:
-        for cmd in commands:
-            log(logf, "[DRY] would run X11:", cmd)
-        return True, "OK (dry-run)"
 
-    for cmd in commands:
-        if cmd.startswith("sleep "):
-            try:
-                seconds = float(cmd.split()[1])
-                time.sleep(seconds)
-            except Exception:
-                time.sleep(0.5)
-            continue
-
-        rc, out, err = run_cmd(cmd, logf)
-
-        if rc != 0:
-            return False, (err or out or f"Hiba: {cmd}").strip()
-
-    return True, "OK"
-
-def run_cmd(cmd: str, f=None):
-    env = os.environ.copy()
-    env.setdefault("TERM", "dumb")
-    if f: log(f, "$", cmd)
-    p = subprocess.run(cmd, shell=True, text=True,
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-    out = strip_ansi(p.stdout)
-    err = strip_ansi(p.stderr)
-    if f:
-        if (p.stdout or "").strip(): log(f, "STDOUT_RAW:", out.rstrip())
-        if (p.stderr or "").strip(): log(f, "STDERR_RAW:", err.rstrip())
-        log(f, f"RC={p.returncode}")
-    return p.returncode, out, err
 
 # KNotification / libnotify helper
 def notify(title: str, body: str = "", urgency: str = "normal", timeout_ms: int = 4000, logf=None):
@@ -147,87 +110,6 @@ def notify(title: str, body: str = "", urgency: str = "normal", timeout_ms: int 
         run_cmd(cmd, logf)
     except Exception as e:
         if logf: log(logf, f"notify(fallback) FAIL: {e}")
-
-
-
-# ============================== Autodetect ====================================
-
-def x11_connected_outputs(f=None):
-    """
-    X11 alatt visszaadja a csatlakoztatott kimenetek nevét set-ként.
-    Példa elemek: {'eDP-1', 'HDMI-A-1', 'DP-2'}
-    """
-    rc, out, err = run_cmd("xrandr --query", f)
-    if rc != 0:
-        raise RuntimeError(f"xrandr lekérdezés sikertelen: {err.strip() or 'ismeretlen hiba'}")
-
-    connected = set()
-    for line in out.splitlines():
-        m = re.match(r"^(\S+)\s+connected\b", line)
-        if m:
-            connected.add(m.group(1))
-    return connected
-
-
-
-def x11_active_outputs(f=None):
-    """
-    X11 alatt visszaadja az AKTÍV kimenetek nevét set-ként.
-    Csak az számít aktívnak, ahol a sorban van aktuális mód + pozíció,
-    pl. '1920x1200+0+0'.
-    """
-    rc, out, err = run_cmd("xrandr --query", f)
-    if rc != 0:
-        raise RuntimeError(f"xrandr lekérdezés sikertelen: {err.strip() or 'ismeretlen hiba'}")
-
-    active = set()
-
-    for line in out.splitlines():
-        if " connected" not in line:
-            continue
-
-        if re.search(r"\b\d{3,4}x\d{3,4}\+\d+\+\d+\b", line):
-            name = line.split()[0]
-            active.add(name)
-
-    return active
-
-
-
-def detect_current_active_setup(f=None):
-    """
-    Az aktuálisan AKTÍV X11 elrendezést próbálja profilnévre fordítani.
-    """
-    raw = x11_active_outputs(f)
-    norm = normalize_connected_outputs(raw)
-
-    if f:
-        log(f, f"[ACTIVE-DETECT] raw_active={sorted(raw)}")
-        log(f, f"[ACTIVE-DETECT] normalized={sorted(norm)}")
-
-    if norm == {"eDP"}:
-        return "Laptop (csak)"
-
-    if norm == {"eDP", "DP"}:
-        return "Laptop + Soundbar"
-
-    if norm == {"eDP", "HDMI", "DP"}:
-        return "Laptop + TV + Soundbar"
-
-    if norm == {"eDP", "HDMI"}:
-        return "Köztes állapot: Laptop + TV"
-
-    return "ismeretlen"
-
-
-
-
-
-
-
-
-
-
 
 
 
