@@ -12,31 +12,41 @@ Sajnálatos módon az audió rész instabil, csak az alábbi bekötéssel műkö
   Soundbar - USB-C
   LG TV - HDMI
 
-fordítva autodetect-el se megy
+
+Ez nem végleges megoldás. Később a program két ismert ThinkPad-konfiguráció közül fog választani.
+
+A teljesen automatikus felismerés jelenleg nem megbízható, ezért a következő lépés két ismert konfiguráció kézi felvétele.
+
+ Következő lépés:
+  - Létrehozunk kézzel 2 konfiguráxiót:
+      A.
+        | Kimenet | Szerep |
+        |---      |     ---|
+        | `eDP` | Laptop belső kijelző |
+        | `USB-C: DisplayPort-1` | Soundbar / audio útvonalhoz szükséges ál-kijelző |
+        | `HDMI: HDMI-A-0` | TV / külső 4K kijelző |
+
+      B.
+        | Kimenet | Szerep |
+        |---      |     ---|
+        | `eDP` | Laptop belső kijelző |
+        | `HDMI: HDMI-A-0`| Soundbar / audio útvonalhoz szükséges ál-kijelző |
+        | `DisplayPort-1` | TV / külső 4K kijelző |
+
+  - Autodetect csak előre beállított profilokból választ
+
+
 
 A program jelenleg X11-re van használva.
 A Wayland / `kscreen-doctor` ág a kódban részben jelen van, de jelenleg nincs aktív használatban.
 
+
+
 ## Jelenlegi célhardver
 
-A program jelenleg az alábbi konkrét felállásra van igazítva:
-
-| Kimenet | Szerep |
-|---|---|
-| `eDP` | Laptop belső kijelző |
-| `HDMI-A-0` | Soundbar / audio útvonalhoz szükséges ál-kijelző |
-| `DisplayPort-1` | TV / külső 4K kijelző |
-
-Az automatikus felismerés biztonságosra van tervezve:
-
-> A TV-t nem kapcsoljuk be automatikusan csak azért, mert `connected` állapotban van.
-
-A program helyes működéséhez jelenleg ez a kiosztás az elvárt:
-
-
-eDP            connected primary
-HDMI-A-0       connected / Soundbar
-DisplayPort-1  connected / TV
+Lenovo ThinkPad E16 Gen2
+  - CPU: AMD Ryzen 7
+  - GPU: AMD Radeon Graphics 680M
 
 
 ## Fűggőségek
@@ -51,14 +61,7 @@ sudo apt install python3-gi gir1.2-notify-0.7 libnotify-bin
 
 
 
-## Jelenlegi struktúra
 
-~/Kijelzo/
-  monitor-config.py
-  kijelzo.sh
-  README.md
-  .gitignore
-  .venv/
 
 
 
