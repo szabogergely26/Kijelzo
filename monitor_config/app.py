@@ -1,17 +1,17 @@
-#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 #########  2026.06.19 ##########
 
+
 """
- ---- Fejlesztői verzió !! ---------
+Monitor Config - fő alkalmazásablak.
 
- Ha Waylandot is szeretnél használni, ezt javítsd!!!:
+Ez a modul tartalmazza:
+- a fő GUI ablakot
+- az About dialógust
+- a profilgombokat
+- az alkalmazási logikát
 
-if p.returncode == 0:
- if not is_wayland():
-       ...
-        p = subprocess.run(...)
-
+A program belépési pontja a projekt gyökerében lévő main.py.
 """
 
 import sys
@@ -29,6 +29,9 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtCore import Qt
 
+
+from .log_utils import LOG_FILE_PATH, log_open, log
+
 # ============================== App meta ======================================
 APP_NAME = "Kijelző váltó - Fehlesztői"
 APP_VERSION = "4.0"
@@ -45,50 +48,6 @@ try:
 except Exception:
     _HAS_GI_NOTIFY = False
 
-# ============================== Log beállítások ===============================
-LOG_FILE_PATH = "/tmp/monitor_config.log"
-
-# (opcionális) log-rotáció ~2MB felett
-def _rotate_log_if_big(path: str, max_bytes: int = 2_000_000):
-    try:
-        if os.path.exists(path) and os.path.getsize(path) > max_bytes:
-            ts = time.strftime("%Y%m%d-%H%M%S")
-            os.rename(path, f"{path}.{ts}.1")
-    except Exception:
-        pass
-
-def _ts():
-    return time.strftime("%Y-%m-%d %H:%M:%S")
-
-# Naplózás:
-def log_open():
-    _rotate_log_if_big(LOG_FILE_PATH)
-    f = open(LOG_FILE_PATH, "a", buffering=1, encoding="utf-8", errors="replace")
-
-    header_1 = f"\n--- Session {_ts()} ---"     # Session+Date
-    header_2 = f"USER={os.environ.get('USER')}  DISPLAY_SERVER={os.environ.get('XDG_SESSION_TYPE')}  DRY_RUN={DRY_RUN}" # User, Display, DRY_RUN
-
-    # fájl-ba írunk:
-    f.write(header_1 + "\n")
-    f.write(header_2 + "\n")
-
-    # konsole-ra írunk:
-    print(header_1, flush=True)
-    print(header_2, flush=True)
-
-    return f
-
-
-def log(f, *args):
-    try:
-        line = " ".join(str(a) for a in args)
-        formatted_line = f"[{_ts()}] {line}"
-
-        f.write(formatted_line + "\n")  # fájlba ír
-        print(formatted_line, flush=True) # konsole-ra ír
-
-    except Exception:
-        pass
 
 # ============================== ANSI strip ====================================
 ANSI_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
