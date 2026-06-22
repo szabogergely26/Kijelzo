@@ -65,12 +65,14 @@ def log_open():
     _rotate_log_if_big(LOG_FILE_PATH)
     f = open(LOG_FILE_PATH, "a", buffering=1, encoding="utf-8", errors="replace")
 
-    header_1 = f"\n--- Session {_ts()} ---"
-    header_2 = f"USER={os.environ.get('USER')}  DISPLAY_SERVER={os.environ.get('XDG_SESSION_TYPE')}  DRY_RUN={DRY_RUN}"
+    header_1 = f"\n--- Session {_ts()} ---"     # Session+Date
+    header_2 = f"USER={os.environ.get('USER')}  DISPLAY_SERVER={os.environ.get('XDG_SESSION_TYPE')}  DRY_RUN={DRY_RUN}" # User, Display, DRY_RUN
 
+    # fájl-ba írunk:
     f.write(header_1 + "\n")
     f.write(header_2 + "\n")
 
+    # konsole-ra írunk:
     print(header_1, flush=True)
     print(header_2, flush=True)
 
@@ -82,8 +84,8 @@ def log(f, *args):
         line = " ".join(str(a) for a in args)
         formatted_line = f"[{_ts()}] {line}"
 
-        f.write(formatted_line + "\n")
-        print(formatted_line, flush=True)
+        f.write(formatted_line + "\n")  # fájlba ír
+        print(formatted_line, flush=True) # konsole-ra ír
 
     except Exception:
         pass
@@ -280,11 +282,11 @@ def detect_current_active_setup(f=None):
     if norm == {"eDP", "DP"}:
         return "Laptop + Soundbar"
 
-    if {"eDP", "HDMI", "DP"}.issubset(norm):
+    if norm == {"eDP", "HDMI", "DP"}:
         return "Laptop + TV + Soundbar"
 
-    if {"eDP", "HDMI"}.issubset(norm):
-        return "Laptop + TV + Soundbar"
+    if norm == {"eDP", "HDMI"}:
+        return "Köztes állapot: Laptop + TV"
 
     return "ismeretlen"
 
@@ -349,18 +351,21 @@ def normalize_connected_outputs(raw_names: set[str]) -> set[str]:
 
 def detect_current_setup(f=None):
     """
-    Visszaad:
-      (profil_név, részletes_szöveg)
+    Autodetect: a csatlakoztatott eszközök alapján biztonságos profilt választ.
 
     X11 jelenlegi gép:
       eDP            = laptop kijelző
-      HDMI-A-0       = Soundbar / audio útvonal
-      DisplayPort-1  = TV / 4K kijelző
+      HDMI-A-0       = TV
+      DisplayPort-1  = Soundbar / audio útvonal
 
-    Biztonsági szabály:
-      Az automatikus felismerés SOHA ne kapcsolja be a TV-t csak azért,
-      mert a DisplayPort-1 connected.
+    Szabály:
+      - Laptop mindig kell.
+      - Soundbar esetén választható a Laptop + Soundbar.
+      - TV + Soundbar együtt esetén választható a Laptop + TV + Soundbar.
+      - TV önmagában nem külön profil, ezért fallback.
     """
+
+
     if is_wayland():
         raw = wl_connected_outputs(f)
         backend = "Wayland"
@@ -372,41 +377,46 @@ def detect_current_setup(f=None):
         log(f, f"[AUTODETECT] backend={backend}")
         log(f, f"[AUTODETECT] raw_connected={sorted(raw)}")
 
-    # X11: konkrét, mostani gépedre szabott döntés
-    if not is_wayland():
-        has_edp = "eDP" in raw
-        has_soundbar = "HDMI-A-0" in raw
-        has_tv = "DisplayPort-1" in raw
-
-        if has_edp and has_soundbar:
-            if has_tv:
-                return (
-                    "Laptop + Soundbar",
-                    f"{backend}: laptop + soundbar érzékelve, TV is csatlakozik, de automatikusan nem kapcsolom be"
-                )
-            return "Laptop + Soundbar", f"{backend}: laptop + soundbar érzékelve"
-
-        if has_edp:
-            return "Laptop (csak)", f"{backend}: laptop kijelző érzékelve"
-
-        return "Laptop (csak)", f"{backend}: nem egyértelmű felállás, fallback = Laptop"
-
-    # Wayland fallback, ha egyszer majd visszakapcsolod
     norm = normalize_connected_outputs(raw)
 
-    if norm == {"eDP"}:
-        return "Laptop (csak)", f"{backend}: csak laptop kijelző érzékelve"
+    if f:
+        log(f, f"[AUTODETECT] normalized_connected={sorted(norm)}")
 
-    if norm == {"eDP", "DP"}:
-        return "Laptop + Soundbar", f"{backend}: laptop + soundbar érzékelve"
+    has_laptop = "eDP" in norm
+    has_tv = "HDMI" in norm
+    has_soundbar = "DP" in norm
 
-    if {"eDP", "HDMI", "DP"}.issubset(norm):
-        return "Laptop + Soundbar", f"{backend}: több kijelző érzékelve, biztonságos fallback = Laptop + Soundbar"
+    if f:
+        log(f, f"[AUTODETECT] has_laptop={has_laptop} has_tv={has_tv} has_soundbar={has_soundbar}")
 
-    if {"eDP", "HDMI"}.issubset(norm):
-        return "Laptop + Soundbar", f"{backend}: laptop + HDMI érzékelve, biztonságos fallback = Laptop + Soundbar"
+    if not has_laptop:
+        return (
+            "Laptop (csak)",
+            f"{backend}: laptop kijelző nem egyértelmű, biztonságos fallback = Laptop"
+        )
 
-    return "Laptop (csak)", f"{backend}: nem egyértelmű felállás, fallback = Laptop"
+    if has_tv and has_soundbar:
+        return (
+            "Laptop + TV + Soundbar",
+            f"{backend}: laptop + TV + soundbar érzékelve"
+        )
+
+    if has_soundbar:
+        return (
+            "Laptop + Soundbar",
+            f"{backend}: laptop + soundbar érzékelve"
+        )
+
+    if has_tv:
+        return (
+            "Laptop (csak)",
+            f"{backend}: TV érzékelve, de soundbar nélkül nincs külön TV profil, fallback = Laptop"
+        )
+
+    return (
+        "Laptop (csak)",
+        f"{backend}: csak laptop kijelző érzékelve"
+    )
 
 
 
