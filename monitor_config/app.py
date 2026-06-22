@@ -32,10 +32,10 @@ from PyQt5.QtCore import Qt
 
 from .log_utils import LOG_FILE_PATH, log_open, log
 from monitor_config.profiles import X11_PROFILES
+from .version_info import APP_NAME, APP_CHANNEL, APP_VERSION, get_display_version
 
 # ============================== App meta ======================================
-APP_NAME = "Kijelző váltó - Fehlesztői"
-APP_VERSION = "4.0"
+
 
 # -- DRY RUN: ha --dry paraméterrel indítod, csak logolunk, nem futtatunk parancsot
 DRY_RUN = "--dry" in sys.argv
@@ -610,16 +610,27 @@ class MonitorSetupApp(QWidget):
 
 
         # Címsor
-        self.setWindowTitle("Kijelző beállítások - Fejlesztői verzió" + (" — DRY RUN" if DRY_RUN else ""))
+        title = APP_NAME
 
-        # Fő layout (csak egyszer!)
+        if APP_CHANNEL == "preview":
+            title += " - Előzetes verzió"
+        elif APP_CHANNEL == "dev":
+            title += " - Fejlesztői verzió"
+
+        if DRY_RUN:
+            title += " — DRY RUN"
+
+        self.setWindowTitle(title)
+
+        # Fő layout (csak egyszer):
         existing = self.layout()
         if existing is None:
             self.lay = QVBoxLayout(self)
-            self.lay.setContentsMargins(12, 12, 12, 12)
-            self.lay.setSpacing(8)
+            self.lay.setContentsMargins(12,12,12,12)
+            self.lay.setSpacing(0)
         else:
             self.lay = existing
+
 
         # --- FELSŐ SÁV: cím + súgó ikon ---
         top = QWidget(self)
