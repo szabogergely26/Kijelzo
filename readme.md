@@ -8,7 +8,11 @@ A program célja, hogy gyorsan lehessen váltani a ThinkPad kijelző, a Soundbar
 
 Jelenlegi állapot: működő köztes verzió.
 
-Sajnálatos módon az audió rész nem működik !!
+Sajnálatos módon az audió rész instabil, csak az alábbi bekötéssel működik:
+  Soundbar - USB-C
+  LG TV - HDMI
+
+fordítva autodetect-el se megy
 
 A program jelenleg X11-re van használva.
 A Wayland / `kscreen-doctor` ág a kódban részben jelen van, de jelenleg nincs aktív használatban.
