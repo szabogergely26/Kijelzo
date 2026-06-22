@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import sys
+
 import os
 import time
+from pathlib import Path
 
-# -- DRY RUN: ha --dry paraméterrel indítod, csak logolunk, nem futtatunk parancsot
-DRY_RUN = "--dry" in sys.argv
+from .config import DRY_RUN
 
 # ============================== Log beállítások ===============================
 LOG_FILE_PATH = "/tmp/monitor_config.log"
