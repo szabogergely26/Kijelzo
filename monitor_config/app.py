@@ -39,6 +39,7 @@ from .log_utils import LOG_FILE_PATH, log_open, log
 from monitor_config.profiles import X11_PROFILES
 from .version_info import APP_NAME, APP_CHANNEL, APP_VERSION, get_display_version
 from .config import DRY_RUN
+from .autodetect import normalize_connected_outputs, select_profile_from_outputs
 
 
 # ============================== Libnotify =====================================
@@ -250,31 +251,7 @@ def wl_connected_outputs(f=None):
     return connected
 
 
-def normalize_connected_outputs(raw_names: set[str]) -> set[str]:
-    """
-    Különböző rendszerek / driverek eltérő neveit közös logikai nevekre húzza össze.
-    """
-    norm = set()
 
-    for name in raw_names:
-        low = name.lower()
-
-        # belső kijelző
-        if low in {"edp", "edp-1", "edp1"}:
-            norm.add("eDP")
-            continue
-
-        # HDMI
-        if low in {"hdmi-a-0", "hdmi-a-1", "hdmi-0", "hdmi-1", "hdmi"} or low.startswith("hdmi"):
-            norm.add("HDMI")
-            continue
-
-        # DP / soundbar
-        if low in {"dp-2", "displayport-2", "displayport-1", "dp2", "dp1"} or "displayport" in low or low.startswith("dp-"):
-            norm.add("DP")
-            continue
-
-    return norm
 
 
 def detect_current_setup(f=None):
@@ -305,46 +282,14 @@ def detect_current_setup(f=None):
         log(f, f"[AUTODETECT] backend={backend}")
         log(f, f"[AUTODETECT] raw_connected={sorted(raw)}")
 
-    norm = normalize_connected_outputs(raw)
+    profile_name, detail, norm = select_profile_from_outputs(raw, backend)
 
     if f:
         log(f, f"[AUTODETECT] normalized_connected={sorted(norm)}")
+        log(f, f"[AUTODETECT] selected_profile={profile_name}")
+        log(f, f"[AUTODETECT] detail={detail}")
 
-    has_laptop = "eDP" in norm
-    has_tv = "HDMI" in norm
-    has_soundbar = "DP" in norm
-
-    if f:
-        log(f, f"[AUTODETECT] has_laptop={has_laptop} has_tv={has_tv} has_soundbar={has_soundbar}")
-
-    if not has_laptop:
-        return (
-            "Laptop (csak)",
-            f"{backend}: laptop kijelző nem egyértelmű, biztonságos fallback = Laptop"
-        )
-
-    if has_tv and has_soundbar:
-        return (
-            "Laptop + TV + Soundbar",
-            f"{backend}: laptop + TV + soundbar érzékelve"
-        )
-
-    if has_soundbar:
-        return (
-            "Laptop + Soundbar",
-            f"{backend}: laptop + soundbar érzékelve"
-        )
-
-    if has_tv:
-        return (
-            "Laptop (csak)",
-            f"{backend}: TV érzékelve, de soundbar nélkül nincs külön TV profil, fallback = Laptop"
-        )
-
-    return (
-        "Laptop (csak)",
-        f"{backend}: csak laptop kijelző érzékelve"
-    )
+    return profile_name, detail
 
 
 
