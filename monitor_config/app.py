@@ -12,6 +12,11 @@ Ez a modul tartalmazza:
 - az alkalmazási logikát
 
 A program belépési pontja a projekt gyökerében lévő main.py.
+
+DRY_RUN: Teztüzem
+Vagyis az app úgy tesz, mintha végrehajtaná a kijelzőváltó parancsokat, de valójában nem futtatja le őket.
+Csak kiírja / logolja, hogy mit csinálna.
+
 """
 
 import sys
@@ -33,12 +38,8 @@ from PyQt5.QtCore import Qt
 from .log_utils import LOG_FILE_PATH, log_open, log
 from monitor_config.profiles import X11_PROFILES
 from .version_info import APP_NAME, APP_CHANNEL, APP_VERSION, get_display_version
+from .config import DRY_RUN
 
-# ============================== App meta ======================================
-
-
-# -- DRY RUN: ha --dry paraméterrel indítod, csak logolunk, nem futtatunk parancsot
-DRY_RUN = "--dry" in sys.argv
 
 # ============================== Libnotify =====================================
 try:
