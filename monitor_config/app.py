@@ -24,7 +24,7 @@ import os
 import time
 import re
 import traceback
-import shlex
+
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
@@ -36,23 +36,12 @@ from PyQt5.QtCore import Qt
 
 from .log_utils import LOG_FILE_PATH, log_open, log
 from monitor_config.profiles import X11_PROFILES
-from .version_info import APP_NAME, APP_CHANNEL, APP_VERSION, get_display_version
+from .version_info import APP_NAME, APP_CHANNEL, APP_VERSION
 from .config import DRY_RUN
-from .autodetect import normalize_connected_outputs, select_profile_from_outputs
+from .autodetect import select_profile_from_outputs
 from .command_utils import run_cmd
 from .x11 import run_x11_commands, x11_connected_outputs, detect_current_active_setup
-
-
-# ============================== Libnotify =====================================
-try:
-    import gi
-    gi.require_version("Notify", "0.7")
-    from gi.repository import Notify
-    _HAS_GI_NOTIFY = True
-except Exception:
-    _HAS_GI_NOTIFY = False
-
-
+from .notifications import notify, init_notifications
 
 # ============================== Kimenet/Segédek ===============================
 EDP_NAME  = "eDP-1"        # laptop panel
@@ -65,53 +54,6 @@ DP2_NAME  = "DP-2"         # soundbar kijelző (opcionális)
 EDP_POS_SOLO  = (0, 0)
 EDP_POS_UNDER = (960, 2160)
 HDMI_POS      = (0, 0)
-
-
-
-
-
-
-
-
-# KNotification / libnotify helper
-def notify(title: str, body: str = "", urgency: str = "normal", timeout_ms: int = 4000, logf=None):
-    """
-    KDE/Plasma alatt libnotify → KNotification. urgency: low|normal|critical
-    Portal backendnél (xdg-desktop-portal) NINCS App Icon, ezért NEM adunk meg ikont.
-    """
-    if _HAS_GI_NOTIFY:
-        try:
-            n = Notify.Notification.new(title, body, None)  # ikon nélkül
-            try:
-                n.set_urgency({
-                    "low": Notify.Urgency.LOW,
-                    "normal": Notify.Urgency.NORMAL,
-                    "critical": Notify.Urgency.CRITICAL,
-                }.get(urgency, Notify.Urgency.NORMAL))
-            except Exception:
-                pass
-            try:
-                n.set_timeout(timeout_ms)  # ms
-            except Exception:
-                pass
-            n.show()
-            if logf: log(logf, f"notify(libnotify): {title} | {body}")
-            return
-        except Exception as e:
-            if logf: log(logf, f"notify(libnotify) FAIL: {e}")
-
-    # fallback: notify-send (ikon nélkül)
-    cmd = (
-        f'notify-send -a {shlex.quote(APP_NAME)} '
-        f'-u {shlex.quote(urgency)} -t {timeout_ms} '
-        f'{shlex.quote(title)} {shlex.quote(body)}'
-    )
-    try:
-        run_cmd(cmd, logf)
-    except Exception as e:
-        if logf: log(logf, f"notify(fallback) FAIL: {e}")
-
-
 
 
 
@@ -731,11 +673,10 @@ class MonitorSetupApp(QWidget):
 # ================================= main =======================================
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    if _HAS_GI_NOTIFY:
-        try:
-            Notify.init(APP_NAME)
-        except Exception:
-            pass
+
+    init_notifications(APP_NAME)
+
     w = MonitorSetupApp()
     w.show()
+
     sys.exit(app.exec_())

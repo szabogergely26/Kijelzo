@@ -5,18 +5,15 @@ import sys
 
 from PyQt5.QtWidgets import QApplication
 
-from monitor_config import app as app_module
-from monitor_config.app import MonitorSetupApp, _HAS_GI_NOTIFY, APP_NAME
+from monitor_config.app import MonitorSetupApp
+from monitor_config.notifications import init_notifications
+from monitor_config.version_info import APP_NAME
 
 
 def main() -> int:
     qt_app = QApplication(sys.argv)
 
-    if _HAS_GI_NOTIFY:
-        try:
-            app_module.Notify.init(APP_NAME)
-        except Exception:
-            pass
+    init_notifications(APP_NAME)
 
     window = MonitorSetupApp()
     window.show()

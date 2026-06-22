@@ -3,7 +3,6 @@
 
 import os
 import time
-from pathlib import Path
 
 from .config import DRY_RUN
 
