@@ -15,7 +15,6 @@
 """
 
 import sys
-import subprocess
 import os
 import time
 import re
@@ -29,12 +28,26 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtCore import Qt
 
-# ============================== App meta ======================================
-APP_NAME = "Display Switcher"
-APP_VERSION = "3.0"
 
-# -- DRY RUN: ha --dry paraméterrel indítod, csak logolunk, nem futtatunk parancsot
-DRY_RUN = "--dry" in sys.argv
+try:
+    from .version_info import APP_NAME, APP_VERSION, get_window_title
+    from .config import DRY_RUN, LOG_FILE_PATH
+    from .log_utils import log_open, log
+    from .command_utils import run_cmd
+except ImportError:
+    # VS Code "Run Python File" eset:
+    # ilyenkor az app.py közvetlenül indul, nem csomagként.
+    from pathlib import Path
+
+    project_root = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(project_root))
+
+    from monitor_config.version_info import APP_NAME, APP_VERSION, get_window_title
+    from monitor_config.config import DRY_RUN, LOG_FILE_PATH
+    from monitor_config.log_utils import log_open, log
+    from monitor_config.command_utils import run_cmd
+
+
 
 # ============================== Libnotify =====================================
 try:
@@ -44,58 +57,6 @@ try:
     _HAS_GI_NOTIFY = True
 except Exception:
     _HAS_GI_NOTIFY = False
-
-# ============================== Log beállítások ===============================
-LOG_FILE_PATH = "/tmp/monitor_config.log"
-
-# (opcionális) log-rotáció ~2MB felett
-def _rotate_log_if_big(path: str, max_bytes: int = 2_000_000):
-    try:
-        if os.path.exists(path) and os.path.getsize(path) > max_bytes:
-            ts = time.strftime("%Y%m%d-%H%M%S")
-            os.rename(path, f"{path}.{ts}.1")
-    except Exception:
-        pass
-
-def _ts():
-    return time.strftime("%Y-%m-%d %H:%M:%S")
-
-
-# Naplózás:
-def log_open():
-    _rotate_log_if_big(LOG_FILE_PATH)
-    f = open(LOG_FILE_PATH, "a", buffering=1, encoding="utf-8", errors="replace")
-
-    header_1 = f"\n--- Session {_ts()} ---"
-    header_2 = f"USER={os.environ.get('USER')}  DISPLAY_SERVER={os.environ.get('XDG_SESSION_TYPE')}  DRY_RUN={DRY_RUN}"
-
-    f.write(header_1 + "\n")
-    f.write(header_2 + "\n")
-
-    print(header_1, flush=True)
-    print(header_2, flush=True)
-
-    return f
-
-
-def log(f, *args):
-    try:
-        line = " ".join(str(a) for a in args)
-        formatted_line = f"[{_ts()}] {line}"
-
-        f.write(formatted_line + "\n")
-        print(formatted_line, flush=True)
-
-    except Exception:
-        pass
-
-
-
-
-# ============================== ANSI strip ====================================
-ANSI_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-def strip_ansi(s: str) -> str:
-    return ANSI_RE.sub("", s or "")
 
 
 
@@ -181,19 +142,6 @@ def run_x11_commands(commands, logf):
 
     return True, "OK"
 
-def run_cmd(cmd: str, f=None):
-    env = os.environ.copy()
-    env.setdefault("TERM", "dumb")
-    if f: log(f, "$", cmd)
-    p = subprocess.run(cmd, shell=True, text=True,
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-    out = strip_ansi(p.stdout)
-    err = strip_ansi(p.stderr)
-    if f:
-        if (p.stdout or "").strip(): log(f, "STDOUT_RAW:", out.rstrip())
-        if (p.stderr or "").strip(): log(f, "STDERR_RAW:", err.rstrip())
-        log(f, f"RC={p.returncode}")
-    return p.returncode, out, err
 
 # KNotification / libnotify helper
 def notify(title: str, body: str = "", urgency: str = "normal", timeout_ms: int = 4000, logf=None):
@@ -677,7 +625,7 @@ class MonitorSetupApp(QWidget):
 
 
         # Címsor
-        self.setWindowTitle("Kijelző beállítások" + (" — DRY RUN" if DRY_RUN else ""))
+        self.setWindowTitle(get_window_title(DRY_RUN))
 
         # Fő layout (csak egyszer!)
         existing = self.layout()
