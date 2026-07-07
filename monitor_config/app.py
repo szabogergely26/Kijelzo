@@ -65,8 +65,7 @@ from .autodetect import (
 )
 
 from .setup_dialog import XrandrFirstRunDialog
-from .xrandr_input import has_usable_xrandr_input
-
+from .xrandr_input import has_usable_xrandr_input, clear_xrandr_input_file, has_usable_xrandr_input
 
 def wl_connected_outputs(f=None):
     """
@@ -404,6 +403,8 @@ class MonitorSetupApp(QWidget):
         # -------------
         self.b_auto = QPushButton()
         self._refresh_auto_button_text()
+        self.b_relearn = QPushButton("🔄 Kijelzők újrafelvétele")
+        self.b_relearn.setToolTip("Mentett xrandr bemenet törlése és új kijelzőfelvétel indítása.")
 
         self.b1 = QPushButton("💻  Laptop (csak)")
         self.b2 = QPushButton("💻 🔊  Laptop + Soundbar")
@@ -411,6 +412,7 @@ class MonitorSetupApp(QWidget):
 
         auto_row = QHBoxLayout()
         auto_row.addWidget(self.b_auto, 0, Qt.AlignLeft)
+        auto_row.addWidget(self.b_relearn, 0, Qt.AlignLeft)
         auto_row.addStretch()
 
         self.lay.addLayout(auto_row)
@@ -431,8 +433,10 @@ class MonitorSetupApp(QWidget):
 
 
 
+        # Signálok:
 
         self.b_auto.clicked.connect(self.auto_detect_and_apply)
+        self.b_relearn.clicked.connect(self.relearn_displays)
         self.b1.clicked.connect(lambda: self.apply_profile("Laptop (csak)"))
         self.b2.clicked.connect(lambda: self.apply_profile("Laptop + Soundbar"))
         self.b3.clicked.connect(lambda: self.apply_profile("Laptop + TV + Soundbar"))
@@ -514,6 +518,23 @@ class MonitorSetupApp(QWidget):
 
 
 
+    def relearn_displays(self):
+        try:
+            path = clear_xrandr_input_file()
+            log(self.log_file, f"[XRANDR-INPUT] újrafelvétel indítva, fájl kiürítve: {path}")
+
+            self.status_label.setText("Kijelzők újrafelvétele: xrandr kimenet bemásolása szükséges.")
+            self._refresh_auto_button_text()
+
+            XrandrFirstRunDialog(self).exec_()
+
+            self._refresh_auto_button_text()
+
+        except Exception as e:
+            log(self.log_file, f"[XRANDR-INPUT] újrafelvétel hiba: {e}")
+            notify("Kijelzők újrafelvétele hiba", str(e), "critical", 6000, self.log_file)
+
+
 
     def auto_detect_and_apply(self):
         self._refresh_auto_button_text()
@@ -562,7 +583,7 @@ class MonitorSetupApp(QWidget):
 
 
     def _set_buttons_enabled(self, enabled: bool):
-        for b in (self.b_auto, self.b1, self.b2, self.b3):
+        for b in (self.b_auto, self.b_relearn, self.b1, self.b2, self.b3):
             b.setEnabled(enabled)
 
     def show_about(self):
