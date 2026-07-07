@@ -20,6 +20,17 @@ import time
 import re
 import traceback
 
+from pathlib import Path
+
+# VS Code "Run Python File" / közvetlen app.py indítás támogatása.
+# Ha az app.py önálló scriptként indul, beállítjuk a csomag-környezetet,
+# hogy a relatív importok működjenek.
+if __package__ in (None, ""):
+    project_root = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(project_root))
+    __package__ = "monitor_config"
+
+
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QDialog, QDialogButtonBox, QTextBrowser, QShortcut, QFrame
@@ -28,87 +39,26 @@ from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtCore import Qt
 
 
-try:
-    from .version_info import APP_NAME, APP_VERSION, get_window_title
-    from .config import DRY_RUN, LOG_FILE_PATH
-    from .log_utils import log_open, log
-    from .command_utils import run_cmd
-    from .notifications import init_notifications, notify
-except ImportError:
-    from pathlib import Path
-
-    project_root = Path(__file__).resolve().parent.parent
-    sys.path.insert(0, str(project_root))
-
-    from monitor_config.version_info import APP_NAME, APP_VERSION, get_window_title
-    from monitor_config.config import DRY_RUN, LOG_FILE_PATH
-    from monitor_config.log_utils import log_open, log
-    from monitor_config.command_utils import run_cmd
-    from monitor_config.notifications import init_notifications, notify
-
-
+from .version_info import APP_NAME, APP_VERSION, get_window_title
+from .config import DRY_RUN, LOG_FILE_PATH
+from .log_utils import log_open, log
+from .command_utils import run_cmd
+from .notifications import init_notifications, notify
+from .profiles import (
+    DP2_NAME,
+    EDP_NAME,
+    EDP_POS_SOLO,
+    EDP_POS_UNDER_TV,
+    EDP_RES,
+    HDMI_NAME,
+    HDMI_POS,
+    HDMI_RES,
+    SOUNDBAR_NAME,
+    X11_PROFILES,
+)
 
 
 
-
-# ============================== Kimenet/Segédek ===============================
-# Lenovo LOQ – Debian KDE/X11/NVIDIA
-#
-# xrandr kimenetek:
-#   eDP      = laptop kijelző
-#   HDMI-1-0 = LG TV
-#   DP-1-0   = Citation / Soundbar HDMI audio-kijelző
-
-EDP_NAME = "eDP"
-EDP_RES = "1920x1080"
-
-HDMI_NAME = "HDMI-1-0"
-HDMI_RES = "3840x2160"
-
-SOUNDBAR_NAME = "DP-1-0"
-SOUNDBAR_RES = "1920x1080"
-
-DP2_NAME = SOUNDBAR_NAME
-
-# LOQ teljes elrendezés:
-#   DP-1-0     1920x1080+0+0
-#   HDMI-1-0   3840x2160+0+254
-#   eDP        1920x1080+966+2414
-EDP_POS_SOLO = (0, 0)
-EDP_POS_UNDER_TV = (966, 2414)
-HDMI_POS = (0, 254)
-SOUNDBAR_POS = (0, 0)
-
-
-
-# X11 profilok – Lenovo LOQ
-
-X11_PROFILES = {
-    "Laptop (csak)": {
-        "commands": [
-            "xrandr --output DP-1-0 --off --output HDMI-1-0 --off",
-            "sleep 0.5",
-            "xrandr --fb 1920x1080 --output eDP --primary --mode 1920x1080 --rate 144.00 --pos 0x0",
-        ],
-        "description": "LOQ: csak a laptop kijelző aktív.",
-    },
-
-    "Laptop + Soundbar": {
-        "commands": [
-            "xrandr --output HDMI-1-0 --off",
-            "sleep 0.5",
-            "xrandr --fb 3840x1080 --output eDP --primary --mode 1920x1080 --rate 144.00 --pos 0x0 --output DP-1-0 --mode 1920x1080 --rate 59.94 --pos 1920x0",
-        ],
-        "description": "LOQ: laptop + soundbar, TV kikapcsolva.",
-    },
-
-   "Laptop + TV + Soundbar": {
-        "commands": [
-            "xrandr --fb 3840x3494 --output DP-1-0 --mode 1920x1080 --rate 59.94 --pos 0x0 --output HDMI-1-0 --mode 3840x2160 --rate 23.98 --pos 0x254 --output eDP --primary --mode 1920x1080 --rate 144.00 --pos 966x2414",
-        ],
-        "description": "LOQ: TV fent, laptop alatta, soundbar aktív.",  
-    },
-}
 
 
 def run_x11_commands(commands, logf):
