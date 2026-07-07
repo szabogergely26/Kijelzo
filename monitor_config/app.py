@@ -59,7 +59,8 @@ from .profiles import (
 
 from .x11 import run_x11_commands
 from .autodetect import detect_current_active_setup, detect_current_setup
-
+from .setup_dialog import XrandrFirstRunDialog
+from .xrandr_input import has_usable_xrandr_input
 
 
 def wl_connected_outputs(f=None):
@@ -396,7 +397,8 @@ class MonitorSetupApp(QWidget):
 
         # --- Gombok:
         # -------------
-        self.b_auto = QPushButton("🪄 Automatikus felismerés")
+        self.b_auto = QPushButton()
+        self._refresh_auto_button_text()
 
         self.b1 = QPushButton("💻  Laptop (csak)")
         self.b2 = QPushButton("💻 🔊  Laptop + Soundbar")
@@ -509,7 +511,15 @@ class MonitorSetupApp(QWidget):
 
 
     def auto_detect_and_apply(self):
-        self.status_label.setText("Kijelzők automatikus felismerése…")
+        self._refresh_auto_button_text()
+
+        if not has_usable_xrandr_input():
+            log(self.log_file, "[XRANDR-INPUT] nincs használható mentett xrandr bemenet")
+            XrandrFirstRunDialog(self).exec_()
+            self._refresh_auto_button_text()
+            return
+
+        self.status_label.setText("Profil felismerése mentett xrandr kimenetből…")
         QApplication.processEvents()
         self._set_buttons_enabled(False)
 
@@ -530,6 +540,21 @@ class MonitorSetupApp(QWidget):
             self.status_label.setText("Autodetect hiba történt.")
         finally:
             self._set_buttons_enabled(True)
+
+
+    def _refresh_auto_button_text(self):
+        try:
+            if has_usable_xrandr_input():
+                self.b_auto.setText("🪄 Profil felismerése")
+                self.b_auto.setToolTip("Profil felismerése a mentett xrandr kimenetből.")
+            else:
+                self.b_auto.setText("🪄 Kijelzők felvétele")
+                self.b_auto.setToolTip("Első futtatás: xrandr kimenet bemásolása szükséges.")
+        except Exception as e:
+            log(self.log_file, f"[XRANDR-INPUT] button refresh FAIL: {e}")
+            self.b_auto.setText("🪄 Kijelzők felvétele")
+
+
 
     def _set_buttons_enabled(self, enabled: bool):
         for b in (self.b_auto, self.b1, self.b2, self.b3):
