@@ -956,14 +956,22 @@ class MonitorSetupApp(QWidget):
             pass
         super().closeEvent(ev)
 
+
+        
 # ================================= main =======================================
-if __name__ == "__main__":
+def main():
     app = QApplication(sys.argv)
+
     if _HAS_GI_NOTIFY:
         try:
             Notify.init(APP_NAME)
         except Exception:
             pass
+
     w = MonitorSetupApp()
     w.show()
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
