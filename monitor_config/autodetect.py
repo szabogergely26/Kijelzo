@@ -2,6 +2,7 @@
 
 from .log_utils import log
 from .x11 import x11_active_outputs, x11_connected_outputs
+from .xrandr_input import get_saved_xrandr_state
 
 
 def normalize_connected_outputs(raw_names: set[str]) -> set[str]:
@@ -112,4 +113,57 @@ def detect_current_setup(f=None, is_wayland_func=None):
     return (
         "Laptop (csak)",
         f"{backend}: nem egyértelmű LOQ felállás, fallback = Laptop",
+    )
+
+
+def detect_saved_xrandr_setup(f=None):
+    """
+    A mentett xrandr-input.txt alapján választ profilt.
+
+    Fontos különbség:
+      connected_outputs → milyen eszközök érhetők el
+      active_outputs    → mi aktív jelenleg
+
+    Profilválasztásnál most a connected_outputs alapján döntünk,
+    mert a cél az, hogy a mentett hardverállapotból válasszunk elérhető profilt.
+    """
+    state = get_saved_xrandr_state()
+    connected = state.connected_outputs
+    active = state.active_outputs
+
+    if f:
+        log(f, f"[XRANDR-FILE-DETECT] connected={sorted(connected)}")
+        log(f, f"[XRANDR-FILE-DETECT] active={sorted(active)}")
+
+    has_edp = "eDP" in connected
+    has_tv = "HDMI-1-0" in connected
+    has_soundbar = "DP-1-0" in connected
+
+    if has_edp and has_tv and has_soundbar:
+        return (
+            "Laptop + TV + Soundbar",
+            "Mentett xrandr: LOQ laptop + TV + soundbar elérhető",
+        )
+
+    if has_edp and has_soundbar:
+        return (
+            "Laptop + Soundbar",
+            "Mentett xrandr: LOQ laptop + soundbar elérhető",
+        )
+
+    if has_edp and has_tv:
+        return (
+            "Laptop + TV + Soundbar",
+            "Mentett xrandr: LOQ laptop + TV elérhető, soundbar nélkül",
+        )
+
+    if has_edp:
+        return (
+            "Laptop (csak)",
+            "Mentett xrandr: csak a laptop kijelző biztosan elérhető",
+        )
+
+    return (
+        "Laptop (csak)",
+        "Mentett xrandr: nem egyértelmű felállás, fallback = Laptop",
     )

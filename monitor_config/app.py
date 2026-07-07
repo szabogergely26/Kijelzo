@@ -58,7 +58,12 @@ from .profiles import (
 )
 
 from .x11 import run_x11_commands
-from .autodetect import detect_current_active_setup, detect_current_setup
+from .autodetect import (
+    detect_current_active_setup,
+    detect_current_setup,
+    detect_saved_xrandr_setup,
+)
+
 from .setup_dialog import XrandrFirstRunDialog
 from .xrandr_input import has_usable_xrandr_input
 
@@ -524,7 +529,7 @@ class MonitorSetupApp(QWidget):
         self._set_buttons_enabled(False)
 
         try:
-            profile_name, detail = detect_current_setup(self.log_file, is_wayland)
+            profile_name, detail = detect_saved_xrandr_setup(self.log_file)
             log(self.log_file, f"[AUTODETECT] selected_profile={profile_name}")
             log(self.log_file, f"[AUTODETECT] detail={detail}")
 
@@ -593,6 +598,13 @@ class MonitorSetupApp(QWidget):
                     return
 
                 self.sb_msg.setText(f'Aktuális: "{name}"')
+
+                if DRY_RUN:
+                    log(self.log_file, "[DRY] X11 postcheck kihagyva")
+                    log(self.log_file, "[DRY] Plasma restart kihagyva")
+                    log(self.log_file, "[DRY] siker értesítés kihagyva")
+                    return
+
                 time.sleep(1)
 
                 rc2, out2, err2 = run_cmd("xrandr --query", self.log_file)
