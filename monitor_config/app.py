@@ -59,13 +59,12 @@ from .profiles import (
 
 from .x11 import run_x11_commands
 from .autodetect import (
-    detect_current_active_setup,
     detect_current_setup,
     detect_saved_xrandr_setup,
 )
 
 from .setup_dialog import XrandrFirstRunDialog
-from .xrandr_input import has_usable_xrandr_input, clear_xrandr_input_file, has_usable_xrandr_input
+from .xrandr_input import has_usable_xrandr_input, clear_xrandr_input_file
 
 def wl_connected_outputs(f=None):
     """
@@ -402,13 +401,14 @@ class MonitorSetupApp(QWidget):
         # --- Gombok:
         # -------------
         self.b_auto = QPushButton()
-        self._refresh_auto_button_text()
         self.b_relearn = QPushButton("🔄 Kijelzők újrafelvétele")
         self.b_relearn.setToolTip("Mentett xrandr bemenet törlése és új kijelzőfelvétel indítása.")
 
         self.b1 = QPushButton("💻  Laptop (csak)")
         self.b2 = QPushButton("💻 🔊  Laptop + Soundbar")
         self.b3 = QPushButton("💻 📺 🔊  Laptop + TV + Soundbar")
+
+        self._refresh_auto_button_text()
 
         auto_row = QHBoxLayout()
         auto_row.addWidget(self.b_auto, 0, Qt.AlignLeft)
@@ -508,12 +508,32 @@ class MonitorSetupApp(QWidget):
 
 
     def _init_current_status(self):
+        """
+        Induláskori felismerés kizárólag mentett xrandr bemenetből.
+
+        Fontos:
+        - nem futtat élő `xrandr --query` lekérdezést
+        - ha a fájl üres vagy hibás, nincs fallback élő xrandr-re
+        """
         try:
-            profile_name = detect_current_active_setup(self.log_file)
+            log(self.log_file, "[DETECT] felismerés forrása: mentett xrandr fájl")
+
+            if not has_usable_xrandr_input():
+                log(self.log_file, "[XRANDR-INPUT] mentett xrandr bemenet üres vagy nem használható")
+                self.sb_msg.setText('Aktuális: "nincs mentett xrandr bemenet"')
+                self.status_label.setText(
+                    "Mentett xrandr bemenet üres. Másold be az xrandr teljes kimenetét."
+                )
+                return
+
+            profile_name, detail = detect_saved_xrandr_setup(self.log_file)
             self.sb_msg.setText(f'Aktuális: "{profile_name}"')
-            log(self.log_file, f"[STARTUP] current_profile={profile_name}")
+            self.status_label.setText(f"Felismerés mentett xrandr fájlból: {detail}")
+            log(self.log_file, f"[STARTUP] saved_profile={profile_name}")
+            log(self.log_file, f"[STARTUP] saved_detail={detail}")
+
         except Exception as e:
-            log(self.log_file, f"[STARTUP] detect FAIL: {e}")
+            log(self.log_file, f"[STARTUP] saved detect FAIL: {e}")
             self.sb_msg.setText('Aktuális: "ismeretlen"')
 
 
@@ -521,9 +541,9 @@ class MonitorSetupApp(QWidget):
     def relearn_displays(self):
         try:
             path = clear_xrandr_input_file()
-            log(self.log_file, f"[XRANDR-INPUT] újrafelvétel indítva, fájl kiürítve: {path}")
+            log(self.log_file, f"[XRANDR-INPUT] mentett xrandr bemeneti fájl előkészítve: {path}")
 
-            self.status_label.setText("Kijelzők újrafelvétele: xrandr kimenet bemásolása szükséges.")
+            self.status_label.setText("Mentett xrandr bemenet előkészítve. Másold be az xrandr teljes kimenetét a fájlba.")
             self._refresh_auto_button_text()
 
             XrandrFirstRunDialog(self).exec_()
@@ -540,8 +560,8 @@ class MonitorSetupApp(QWidget):
         self._refresh_auto_button_text()
 
         if not has_usable_xrandr_input():
-            log(self.log_file, "[XRANDR-INPUT] nincs használható mentett xrandr bemenet")
-            XrandrFirstRunDialog(self).exec_()
+            log(self.log_file, "[XRANDR-INPUT] automatikus felismerés tiltva: nincs használható mentett xrandr bemenet")
+            self.status_label.setText("Mentett xrandr bemenet hiányzik. Automatikus felismerés nem futtatható.")
             self._refresh_auto_button_text()
             return
 
@@ -565,26 +585,50 @@ class MonitorSetupApp(QWidget):
             notify("Autodetect hiba", str(e), "critical", 8000, self.log_file)
             self.status_label.setText("Autodetect hiba történt.")
         finally:
-            self._set_buttons_enabled(True)
+            self._refresh_auto_button_text()
 
 
     def _refresh_auto_button_text(self):
         try:
-            if has_usable_xrandr_input():
-                self.b_auto.setText("🪄 Profil felismerése")
-                self.b_auto.setToolTip("Profil felismerése a mentett xrandr kimenetből.")
+            has_input = has_usable_xrandr_input()
+
+            if has_input:
+                self.b_auto.setText("🪄 Felismerés fájlból")
+                self.b_auto.setToolTip(
+                    "Profil felismerése kizárólag a mentett xrandr-input.txt fájlból. "
+                    "Élő xrandr lekérdezést nem futtat."
+                )
+                self.status_label.setText("Mentett xrandr bemenet betöltve. A profilgombok használhatók.")
             else:
-                self.b_auto.setText("🪄 Kijelzők felvétele")
-                self.b_auto.setToolTip("Első futtatás: xrandr kimenet bemásolása szükséges.")
+                self.b_auto.setText("🪄 xrandr bemenet hiányzik")
+                self.b_auto.setToolTip(
+                    "Másold be az xrandr teljes kimenetét a "
+                    "~/.config/monitor-config/xrandr-input.txt fájlba."
+                )
+                self.status_label.setText("Mentett xrandr bemenet üres. A profilgombok inaktívak.")
+
+            # Szándékosan szigorú:
+            # ha nincs használható mentett xrandr bemenet, se autodetect,
+            # se kézi profilalkalmazás ne fusson.
+            for b in (self.b_auto, self.b1, self.b2, self.b3):
+                b.setEnabled(has_input)
+
+            # Az újrafelvétel / bemeneti fájl előkészítése mindig maradjon elérhető.
+            self.b_relearn.setEnabled(True)
+
         except Exception as e:
             log(self.log_file, f"[XRANDR-INPUT] button refresh FAIL: {e}")
-            self.b_auto.setText("🪄 Kijelzők felvétele")
+            self.b_auto.setText("🪄 xrandr bemenet hiányzik")
+            for b in (self.b_auto, self.b1, self.b2, self.b3):
+                b.setEnabled(False)
+            self.b_relearn.setEnabled(True)
 
 
 
     def _set_buttons_enabled(self, enabled: bool):
-        for b in (self.b_auto, self.b_relearn, self.b1, self.b2, self.b3):
+        for b in (self.b_auto, self.b1, self.b2, self.b3):
             b.setEnabled(enabled)
+        self.b_relearn.setEnabled(True)
 
     def show_about(self):
         try:
@@ -595,6 +639,19 @@ class MonitorSetupApp(QWidget):
             notify("Névjegy hiba", str(e), "critical", 6000, self.log_file)
 
     def apply_profile(self, name: str):
+        if not has_usable_xrandr_input():
+            log(self.log_file, "[XRANDR-INPUT] profil alkalmazása tiltva: nincs használható mentett xrandr bemenet")
+            self.status_label.setText("Mentett xrandr bemenet hiányzik. Profil alkalmazása letiltva.")
+            notify(
+                "xrandr bemenet hiányzik",
+                "A profilgombok csak használható xrandr-input.txt mellett aktívak.",
+                "normal",
+                4000,
+                self.log_file,
+            )
+            self._refresh_auto_button_text()
+            return
+
         self.status_label.setText(f"A(z) '{name}' profil alkalmazása…")
         QApplication.processEvents()
         self._set_buttons_enabled(False)
@@ -628,11 +685,9 @@ class MonitorSetupApp(QWidget):
 
                 time.sleep(1)
 
-                rc2, out2, err2 = run_cmd("xrandr --query", self.log_file)
-                if rc2 == 0:
-                    log(self.log_file, "X11 POSTCHECK OK")
-                else:
-                    log(self.log_file, "X11 POSTCHECK FAIL:", err2)
+                # Élő xrandr --query postcheck kikapcsolva.
+                # A felismerés forrása jelenleg kizárólag a mentett xrandr-input.txt.
+                log(self.log_file, "X11 POSTCHECK kihagyva: élő xrandr lekérdezés kikapcsolva")
 
                 # Plasma helyrerúgás, ha kell
                 run_cmd("kquitapp5 plasmashell || kquitapp6 plasmashell || true", self.log_file)
@@ -676,8 +731,7 @@ class MonitorSetupApp(QWidget):
             log(self.log_file, traceback.format_exc())
             notify("Kijelző kivétel", str(e), "critical", 8000, self.log_file)
         finally:
-            self._set_buttons_enabled(True)
-            self.status_label.setText("Válassz profilt a beállításhoz.")
+            self._refresh_auto_button_text()
 
     def closeEvent(self, ev):
         try:
