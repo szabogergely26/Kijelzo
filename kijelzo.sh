@@ -8,4 +8,4 @@ export XAUTHORITY=/home/szaboger/.Xauthority
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 
 cd /home/szaboger/Kijelzo || exit 1
-/home/szaboger/Kijelzo/.venv/bin/python /home/szaboger/Kijelzo/monitor_config.py
+/home/szaboger/Kijelzo/.venv/bin/python /home/szaboger/Kijelzo/main.py

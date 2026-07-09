@@ -1,3 +1,3 @@
 #!/bin/bash
 
-exec python3 /usr/share/monitor-config/monitor_config.py "$@"
+exec python3 /usr/share/monitor-config/main.py "$@"
