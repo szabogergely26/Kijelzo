@@ -660,43 +660,38 @@ class MonitorSetupApp(QWidget):
             if not is_wayland():
                 profile = X11_PROFILES.get(name)
                 if not profile:
-                    notify("Infó", "Ehhez az X11 profilhoz nincs parancs definiálva.", "normal", 4000, self.log_file)
+                    notify(
+                        "Infó",
+                        "Ehhez az X11 profilhoz nincs definíció.",
+                        "normal",
+                        4000,
+                        self.log_file,
+                    )
                     return
 
-                commands = profile.get("commands")
+                enabled_roles = profile.get("enabled_roles", [])
+                layout = profile.get("layout", "")
+                description = profile.get("description", "")
 
-                if not commands:
-                    notify("Kijelző hiba", "Ehhez az X11 profilhoz nincs commands lista.", "critical", 8000, self.log_file)
-                    return
-
-                ok, msg = run_x11_commands(commands, self.log_file)
-
-                if not ok:
-                    notify("Kijelző hiba", msg or "Ismeretlen hiba", "critical", 8000, self.log_file)
-                    return
+                log(self.log_file, f"[APPLY] profile={name}")
+                log(self.log_file, f"[APPLY] enabled_roles={enabled_roles}")
+                log(self.log_file, f"[APPLY] layout={layout}")
+                log(self.log_file, f"[APPLY] description={description}")
+                log(self.log_file, "[APPLY] dinamikus xrandr parancsgenerálás még nincs bekötve")
 
                 self.sb_msg.setText(f'Aktuális: "{name}"')
+                self.status_label.setText(
+                    f"A(z) '{name}' profil felismerve, de az új dinamikus X11 parancsgenerálás még nincs bekötve."
+                )
 
-                if DRY_RUN:
-                    log(self.log_file, "[DRY] X11 postcheck kihagyva")
-                    log(self.log_file, "[DRY] Plasma restart kihagyva")
-                    log(self.log_file, "[DRY] siker értesítés kihagyva")
-                    return
-
-                time.sleep(1)
-
-                # Élő xrandr --query postcheck kikapcsolva.
-                # A felismerés forrása jelenleg kizárólag a mentett xrandr-input.txt.
-                log(self.log_file, "X11 POSTCHECK kihagyva: élő xrandr lekérdezés kikapcsolva")
-
-                # Plasma helyrerúgás, ha kell
-                run_cmd("kquitapp5 plasmashell || kquitapp6 plasmashell || true", self.log_file)
-                time.sleep(1)
-                run_cmd("kstart5 plasmashell || kstart6 plasmashell || plasmashell &", self.log_file)
-
-                notify("Kijelző beállítva", "Profil alkalmazva (X11).", "normal", 4000, self.log_file)
+                notify(
+                    "Profil felismerve",
+                    "Az új profildefiníció működik, de az xrandr parancsgenerálás még nincs bekötve.",
+                    "normal",
+                    5000,
+                    self.log_file,
+                )
                 return
-
 
 
 

@@ -1,58 +1,66 @@
 # -*- coding: utf-8 -*-
+"""
+Monitor-config profil definíciók.
 
-# Lenovo LOQ – Debian KDE/X11/NVIDIA
-#
-# xrandr kimenetek:
-#   eDP      = laptop kijelző
-#   HDMI-1-0 = LG TV
-#   DP-1-0   = Citation / Soundbar HDMI audio-kijelző
+Fontos:
+- Itt NINCS konkrét xrandr kimenetnév.
+- Itt NINCS gépre égetett felbontás vagy pozíció.
+- Ez a fájl csak azt írja le, hogy egy profil milyen kijelző-szerepeket akar használni.
 
-EDP_NAME = "eDP"
-EDP_RES = "1920x1080"
+A konkrét outputok, például:
+    eDP
+    HDMI-A-0
+    DisplayPort-1
+    HDMI-1-0
+    DP-1-0
 
-HDMI_NAME = "HDMI-1-0"
-HDMI_RES = "3840x2160"
-
-SOUNDBAR_NAME = "DP-1-0"
-SOUNDBAR_RES = "1920x1080"
-
-DP2_NAME = SOUNDBAR_NAME
-
-# LOQ teljes elrendezés:
-#   DP-1-0     1920x1080+0+0
-#   HDMI-1-0   3840x2160+0+254
-#   eDP        1920x1080+966+2414
-EDP_POS_SOLO = (0, 0)
-EDP_POS_UNDER_TV = (966, 2414)
-HDMI_POS = (0, 254)
-SOUNDBAR_POS = (0, 0)
+mind az aktuális / mentett xrandr kimenetből jönnek.
+"""
 
 
-# X11 profilok – Lenovo LOQ
+# X11 profilok – gépfüggetlen profil-szándékok
 
 X11_PROFILES = {
     "Laptop (csak)": {
-        "commands": [
-            "xrandr --output DP-1-0 --off --output HDMI-1-0 --off",
-            "sleep 0.5",
-            "xrandr --fb 1920x1080 --output eDP --primary --mode 1920x1080 --rate 144.00 --pos 0x0",
-        ],
-        "description": "LOQ: csak a laptop kijelző aktív.",
+        "enabled_roles": ["laptop"],
+        "layout": "laptop_only",
+        "description": "Csak a laptop kijelző aktív.",
     },
 
     "Laptop + Soundbar": {
-        "commands": [
-            "xrandr --output HDMI-1-0 --off",
-            "sleep 0.5",
-            "xrandr --fb 3840x1080 --output eDP --primary --mode 1920x1080 --rate 144.00 --pos 0x0 --output DP-1-0 --mode 1920x1080 --rate 59.94 --pos 1920x0",
-        ],
-        "description": "LOQ: laptop + soundbar, TV kikapcsolva.",
+        "enabled_roles": ["laptop", "soundbar"],
+        "layout": "laptop_soundbar",
+        "description": "Laptop + soundbar, TV kikapcsolva.",
     },
 
     "Laptop + TV + Soundbar": {
-        "commands": [
-            "xrandr --fb 3840x3494 --output DP-1-0 --mode 1920x1080 --rate 59.94 --pos 0x0 --output HDMI-1-0 --mode 3840x2160 --rate 23.98 --pos 0x254 --output eDP --primary --mode 1920x1080 --rate 144.00 --pos 966x2414",
-        ],
-        "description": "LOQ: TV fent, laptop alatta, soundbar aktív.",
+        "enabled_roles": ["laptop", "tv", "soundbar"],
+        "layout": "tv_laptop_soundbar",
+        "description": "TV fent, laptop alatta, soundbar aktív.",
     },
 }
+
+
+PROFILE_ORDER = [
+    "Laptop (csak)",
+    "Laptop + Soundbar",
+    "Laptop + TV + Soundbar",
+]
+
+
+DEFAULT_X11_PROFILE = "Laptop (csak)"
+
+
+def get_x11_profile_names():
+    """Visszaadja a profilneveket a kívánt GUI-sorrendben."""
+    return [name for name in PROFILE_ORDER if name in X11_PROFILES]
+
+
+def get_x11_profile(profile_name):
+    """Egy X11 profil definíciójának lekérése név alapján."""
+    return X11_PROFILES.get(profile_name)
+
+
+def get_default_x11_profile_name():
+    """Alapértelmezett X11 profil neve."""
+    return DEFAULT_X11_PROFILE
