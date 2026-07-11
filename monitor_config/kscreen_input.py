@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,6 +51,7 @@ class KScreenParsedState:
 
 
 OUTPUT_RE = re.compile(r"^Output:\s+(\d+)\s+(\S+)\s*$", re.MULTILINE)
+ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 MODE_RE = re.compile(r"(\d+):(\d+x\d+@\d+(?:\.\d+)?)([*!]*)")
 GEOMETRY_RE = re.compile(r"^\s*Geometry:\s+(-?\d+),(-?\d+)\s+(\d+)x(\d+)\s*$", re.MULTILINE)
 PRIORITY_RE = re.compile(r"^\s*priority\s+(\d+)\s*$", re.MULTILINE)
@@ -123,13 +125,14 @@ def _parse_output_block(output_id: str, name: str, block: str) -> KScreenOutput:
 
 def parse_kscreen_text(text: str) -> KScreenParsedState:
     """A `kscreen-doctor -o` teljes kimenetét strukturált állapottá alakítja."""
-    matches = list(OUTPUT_RE.finditer(text))
+    clean_text = ANSI_RE.sub("", text)
+    matches = list(OUTPUT_RE.finditer(clean_text))
     outputs: dict[str, KScreenOutput] = {}
 
     for index, match in enumerate(matches):
         block_start = match.start()
-        block_end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        block = text[block_start:block_end]
+        block_end = matches[index + 1].start() if index + 1 < len(matches) else len(clean_text)
+        block = clean_text[block_start:block_end]
 
         output_id = match.group(1)
         name = match.group(2)

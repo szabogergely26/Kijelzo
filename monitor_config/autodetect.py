@@ -4,11 +4,17 @@ from .kscreen_input import KScreenParsedState, get_saved_kscreen_state, parse_ks
 from .log_utils import log
 
 
-def _detect_from_state(state: KScreenParsedState, f=None, source="KScreen"):
+def _detect_from_state(
+    state: KScreenParsedState,
+    f=None,
+    source="KScreen",
+    enabled_only: bool = False,
+):
     connected = [output for output in state.outputs.values() if output.connected]
     enabled = [output for output in connected if output.enabled]
-    panels = [output for output in connected if output.is_panel]
-    external = [output for output in connected if not output.is_panel]
+    considered = enabled if enabled_only else connected
+    panels = [output for output in considered if output.is_panel]
+    external = [output for output in considered if not output.is_panel]
 
     if f:
         log(f, f"[{source}-DETECT] connected={[o.name for o in connected]}")
@@ -55,4 +61,5 @@ def detect_current_kscreen_setup(text: str, f=None):
         parse_kscreen_text(text),
         f=f,
         source="KSCREEN-LIVE",
+        enabled_only=True,
     )

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-#########  2026.07.11 ##########
+#########  2026.06.19 ##########
 
 """
 ---- Végleges verzió ! ----
@@ -45,7 +45,7 @@ from .log_utils import log_open, log
 from .command_utils import run_cmd
 from .notifications import init_notifications, notify
 from .setup_dialog import XrandrFirstRunDialog
-from .autodetect import detect_saved_kscreen_setup
+from .autodetect import detect_current_kscreen_setup, detect_saved_kscreen_setup
 from .profiles import (
     KSCREEN_PROFILES,
     PROFILE_ALL,
@@ -492,9 +492,9 @@ class MonitorSetupApp(QWidget):
         self.b_relearn = QPushButton("🔄 Kijelzők újrafelvétele")
         self.b_relearn.setToolTip("Mentett KScreen bemenet törlése és új kijelzőfelvétel indítása.")
 
-        self.b1 = QPushButton("💻  Laptop (csak)")
-        self.b2 = QPushButton("💻 🔊  Laptop + Soundbar")
-        self.b3 = QPushButton("💻 📺 🔊  Laptop + TV + Soundbar")
+        self.b1 = QPushButton("💻  Laptop mód")
+        self.b2 = QPushButton("💻 🔊  Laptop mód + Zene")
+        self.b3 = QPushButton("💻 📺 🔊  Film / Sorozat mód")
 
         self._refresh_auto_button_text()
 
@@ -597,14 +597,14 @@ class MonitorSetupApp(QWidget):
 
     def _init_current_status(self):
         """
-        Induláskori felismerés kizárólag mentett KScreen bemenetből.
+        Induláskori státusz a pillanatnyi, engedélyezett KScreen-kimenetekből.
 
         Fontos:
-        - az input ellenőrzéséhez nem futtat élő kijelzőlekérdezést
         - ha a fájl üres vagy hibás, a profilgombok inaktívak
+        - a mentett fájl a profilok alapja, nem az aktuális státusz forrása
         """
         try:
-            log(self.log_file, "[DETECT] felismerés forrása: mentett KScreen fájl")
+            log(self.log_file, "[DETECT] aktuális profil forrása: élő KScreen állapot")
 
             if not has_usable_kscreen_input():
                 log(self.log_file, "[KSCREEN-INPUT] mentett KScreen bemenet üres vagy nem használható")
@@ -614,11 +614,15 @@ class MonitorSetupApp(QWidget):
                 )
                 return
 
-            profile_name, detail = detect_saved_kscreen_setup(self.log_file)
+            rc, live_text, err = run_cmd("kscreen-doctor -o", self.log_file)
+            if rc != 0:
+                raise RuntimeError(err.strip() or "A kscreen-doctor -o lekérdezés sikertelen.")
+
+            profile_name, detail = detect_current_kscreen_setup(live_text, self.log_file)
             self.sb_msg.setText(f'Aktuális: "{profile_name}"')
-            self.status_label.setText(f"Felismerés mentett KScreen fájlból: {detail}")
-            log(self.log_file, f"[STARTUP] saved_profile={profile_name}")
-            log(self.log_file, f"[STARTUP] saved_detail={detail}")
+            self.status_label.setText(f"Aktuális KScreen állapot: {detail}")
+            log(self.log_file, f"[STARTUP] current_profile={profile_name}")
+            log(self.log_file, f"[STARTUP] current_detail={detail}")
 
         except Exception as e:
             log(self.log_file, f"[STARTUP] saved detect FAIL: {e}")
