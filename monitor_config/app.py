@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-#########  2026.06.19 ##########
+#########  2026.07.11 ##########
 
 """
 ---- Végleges verzió ! ----
@@ -44,27 +44,120 @@ from .config import DRY_RUN, LOG_FILE_PATH
 from .log_utils import log_open, log
 from .command_utils import run_cmd
 from .notifications import init_notifications, notify
-from .profiles import (
-    DP2_NAME,
-    EDP_NAME,
-    EDP_POS_SOLO,
-    EDP_POS_UNDER_TV,
-    EDP_RES,
-    HDMI_NAME,
-    HDMI_POS,
-    HDMI_RES,
-    SOUNDBAR_NAME,
-    X11_PROFILES,
-)
-
-from .x11 import run_x11_commands
-from .autodetect import (
-    detect_current_setup,
-    detect_saved_xrandr_setup,
-)
-
 from .setup_dialog import XrandrFirstRunDialog
-from .xrandr_input import has_usable_xrandr_input, clear_xrandr_input_file
+from .autodetect import detect_saved_kscreen_setup
+from .profiles import (
+    KSCREEN_PROFILES,
+    PROFILE_ALL,
+    PROFILE_LAPTOP,
+    PROFILE_LAPTOP_SOUNDBAR,
+)
+from .kscreen_input import (
+    KScreenOutput,
+    clear_kscreen_input_file,
+    get_saved_kscreen_state,
+    has_usable_kscreen_input,
+    parse_kscreen_text,
+)
+
+
+def _find_live_mode(saved: KScreenOutput, live: KScreenOutput) -> str:
+    wanted = saved.active_mode or saved.preferred_mode
+    if wanted:
+        exact = next((mode for mode in live.modes if mode.token == wanted), None)
+        if exact:
+            return exact.mode_id
+
+        wanted_resolution = wanted.split("@", 1)[0]
+        same_resolution = [
+            mode for mode in live.modes if mode.token.split("@", 1)[0] == wanted_resolution
+        ]
+        active = next((mode for mode in same_resolution if mode.active), None)
+        preferred = next((mode for mode in same_resolution if mode.preferred), None)
+        fallback = active or preferred or (same_resolution[0] if same_resolution else None)
+        if fallback:
+            return fallback.mode_id
+
+    raise RuntimeError(f"Nem található megfelelő aktuális mód ehhez: {saved.name}")
+
+
+def _classify_saved_outputs():
+    state = get_saved_kscreen_state()
+    connected = [output for output in state.outputs.values() if output.connected]
+    panels = [output for output in connected if output.is_panel]
+    if len(panels) != 1:
+        raise RuntimeError("A mentett fájlban pontosan egy Panel típusú kijelző szükséges.")
+
+    laptop = panels[0]
+    external = [output for output in connected if not output.is_panel]
+    ranked = sorted(
+        external,
+        key=lambda output: output.geometry_size[0] * output.geometry_size[1],
+        reverse=True,
+    )
+    tv = ranked[0] if ranked else None
+    soundbar = ranked[1] if len(ranked) > 1 else None
+    return laptop, tv, soundbar, connected
+
+
+def build_kscreen_command(profile_name: str, logf=None) -> str:
+    if profile_name not in KSCREEN_PROFILES:
+        raise RuntimeError(f"Ismeretlen profil: {profile_name}")
+
+    rc, live_text, err = run_cmd("kscreen-doctor -o", logf)
+    if rc != 0:
+        raise RuntimeError(err.strip() or "A kscreen-doctor -o lekérdezés sikertelen.")
+
+    live_state = parse_kscreen_text(live_text)
+    laptop, tv, soundbar, connected = _classify_saved_outputs()
+
+    if profile_name == PROFILE_LAPTOP:
+        enabled = [laptop]
+        positions = {laptop.name: (0, 0)}
+    elif profile_name == PROFILE_LAPTOP_SOUNDBAR:
+        if soundbar is None:
+            raise RuntimeError("A mentett fájlban nincs külön soundbar-kimenet.")
+        enabled = [laptop, soundbar]
+        positions = {
+            laptop.name: (0, 0),
+            soundbar.name: (laptop.geometry_size[0], 0),
+        }
+    else:
+        if tv is None or soundbar is None:
+            raise RuntimeError("A mentett fájlban nincs külön TV- és soundbar-kimenet.")
+        enabled = [laptop, soundbar, tv]
+        # A teljes profil pontosan a KDE GUI-val létrehozott, fájlba mentett
+        # pozíciókat használja. Nem talál ki új átfedést vagy képernyőgeometriát.
+        positions = {output.name: output.position for output in enabled}
+
+    enabled_names = {output.name for output in enabled}
+    parts = ["kscreen-doctor"]
+
+    for saved in enabled:
+        live = live_state.outputs.get(saved.name)
+        if live is None or not live.connected:
+            raise RuntimeError(f"A(z) {saved.name} jelenleg nincs csatlakoztatva.")
+        mode_id = _find_live_mode(saved, live)
+        x, y = positions[saved.name]
+        parts.extend(
+            [
+                f"output.{live.output_id}.enable",
+                f"output.{live.output_id}.mode.{mode_id}",
+                f"output.{live.output_id}.position.{x},{y}",
+                f"output.{live.output_id}.scale.1",
+            ]
+        )
+        if saved.name == laptop.name:
+            parts.append(f"output.{live.output_id}.primary")
+
+    for saved in connected:
+        if saved.name in enabled_names:
+            continue
+        live = live_state.outputs.get(saved.name)
+        if live is not None:
+            parts.append(f"output.{live.output_id}.disable")
+
+    return " ".join(parts)
 
 def wl_connected_outputs(f=None):
     """
@@ -291,10 +384,6 @@ def run_sequence(cmds, logf):
                 pass
             return False, (out + err).strip() or f"Hiba (rc={rc})"
 
-    run_cmd("kquitapp5 plasmashell || kquitapp6 plasmashell", logf)
-    time.sleep(1)
-    run_cmd("kstart5 plasmashell || kstart6 plasmashell", logf)
-
     return True, "OK"
 
 
@@ -312,8 +401,7 @@ class AboutDialog(QDialog):
 <hr/>
 <p>Gyors kijelző-profil váltó KDE Wayland/X11 környezethez.</p>
 <ul>
-  <li>Waylanden: <code>kscreen-doctor</code> (ID-alapú)</li>
-  <li>X11-en: <code>xrandr</code></li>
+  <li>KDE X11/Wayland: <code>kscreen-doctor</code> (ID-alapú)</li>
   <li>Értesítés: libnotify/KNotification</li>
   <p> </p>
   <li>Autómatikus felismerés</li>
@@ -402,7 +490,7 @@ class MonitorSetupApp(QWidget):
         # -------------
         self.b_auto = QPushButton()
         self.b_relearn = QPushButton("🔄 Kijelzők újrafelvétele")
-        self.b_relearn.setToolTip("Mentett xrandr bemenet törlése és új kijelzőfelvétel indítása.")
+        self.b_relearn.setToolTip("Mentett KScreen bemenet törlése és új kijelzőfelvétel indítása.")
 
         self.b1 = QPushButton("💻  Laptop (csak)")
         self.b2 = QPushButton("💻 🔊  Laptop + Soundbar")
@@ -437,9 +525,9 @@ class MonitorSetupApp(QWidget):
 
         self.b_auto.clicked.connect(self.auto_detect_and_apply)
         self.b_relearn.clicked.connect(self.relearn_displays)
-        self.b1.clicked.connect(lambda: self.apply_profile("Laptop (csak)"))
-        self.b2.clicked.connect(lambda: self.apply_profile("Laptop + Soundbar"))
-        self.b3.clicked.connect(lambda: self.apply_profile("Laptop + TV + Soundbar"))
+        self.b1.clicked.connect(lambda: self.apply_profile(PROFILE_LAPTOP))
+        self.b2.clicked.connect(lambda: self.apply_profile(PROFILE_LAPTOP_SOUNDBAR))
+        self.b3.clicked.connect(lambda: self.apply_profile(PROFILE_ALL))
 
 
 
@@ -473,8 +561,8 @@ class MonitorSetupApp(QWidget):
         self.setMinimumSize(400, 300)       # x, y
         self.setFixedSize(400,300)
 
-        # Figyelmeztetés, ha Waylanden nincs kscreen-doctor
-        if is_wayland() and not has_kscreen_doctor(self.log_file):
+        # A profilalkalmazás minden támogatott munkamenetben KScreenen keresztül történik.
+        if not has_kscreen_doctor(self.log_file):
             self.status_label.setText("HIBA: 'kscreen-doctor' nem érhető el (KDE/Plasma szükséges).")
 
         # F1 = Névjegy
@@ -509,26 +597,26 @@ class MonitorSetupApp(QWidget):
 
     def _init_current_status(self):
         """
-        Induláskori felismerés kizárólag mentett xrandr bemenetből.
+        Induláskori felismerés kizárólag mentett KScreen bemenetből.
 
         Fontos:
-        - nem futtat élő `xrandr --query` lekérdezést
-        - ha a fájl üres vagy hibás, nincs fallback élő xrandr-re
+        - az input ellenőrzéséhez nem futtat élő kijelzőlekérdezést
+        - ha a fájl üres vagy hibás, a profilgombok inaktívak
         """
         try:
-            log(self.log_file, "[DETECT] felismerés forrása: mentett xrandr fájl")
+            log(self.log_file, "[DETECT] felismerés forrása: mentett KScreen fájl")
 
-            if not has_usable_xrandr_input():
-                log(self.log_file, "[XRANDR-INPUT] mentett xrandr bemenet üres vagy nem használható")
-                self.sb_msg.setText('Aktuális: "nincs mentett xrandr bemenet"')
+            if not has_usable_kscreen_input():
+                log(self.log_file, "[KSCREEN-INPUT] mentett KScreen bemenet üres vagy nem használható")
+                self.sb_msg.setText('Aktuális: "nincs mentett KScreen bemenet"')
                 self.status_label.setText(
-                    "Mentett xrandr bemenet üres. Másold be az xrandr teljes kimenetét."
+                    "Mentett KScreen bemenet üres. Másold be a kscreen-doctor -o teljes kimenetét."
                 )
                 return
 
-            profile_name, detail = detect_saved_xrandr_setup(self.log_file)
+            profile_name, detail = detect_saved_kscreen_setup(self.log_file)
             self.sb_msg.setText(f'Aktuális: "{profile_name}"')
-            self.status_label.setText(f"Felismerés mentett xrandr fájlból: {detail}")
+            self.status_label.setText(f"Felismerés mentett KScreen fájlból: {detail}")
             log(self.log_file, f"[STARTUP] saved_profile={profile_name}")
             log(self.log_file, f"[STARTUP] saved_detail={detail}")
 
@@ -540,10 +628,10 @@ class MonitorSetupApp(QWidget):
 
     def relearn_displays(self):
         try:
-            path = clear_xrandr_input_file()
-            log(self.log_file, f"[XRANDR-INPUT] mentett xrandr bemeneti fájl előkészítve: {path}")
+            path = clear_kscreen_input_file()
+            log(self.log_file, f"[KSCREEN-INPUT] mentett KScreen bemeneti fájl előkészítve: {path}")
 
-            self.status_label.setText("Mentett xrandr bemenet előkészítve. Másold be az xrandr teljes kimenetét a fájlba.")
+            self.status_label.setText("Mentett KScreen bemenet előkészítve. Másold be a kscreen-doctor -o teljes kimenetét a fájlba.")
             self._refresh_auto_button_text()
 
             XrandrFirstRunDialog(self).exec_()
@@ -551,7 +639,7 @@ class MonitorSetupApp(QWidget):
             self._refresh_auto_button_text()
 
         except Exception as e:
-            log(self.log_file, f"[XRANDR-INPUT] újrafelvétel hiba: {e}")
+            log(self.log_file, f"[KSCREEN-INPUT] újrafelvétel hiba: {e}")
             notify("Kijelzők újrafelvétele hiba", str(e), "critical", 6000, self.log_file)
 
 
@@ -559,18 +647,18 @@ class MonitorSetupApp(QWidget):
     def auto_detect_and_apply(self):
         self._refresh_auto_button_text()
 
-        if not has_usable_xrandr_input():
-            log(self.log_file, "[XRANDR-INPUT] automatikus felismerés tiltva: nincs használható mentett xrandr bemenet")
-            self.status_label.setText("Mentett xrandr bemenet hiányzik. Automatikus felismerés nem futtatható.")
+        if not has_usable_kscreen_input():
+            log(self.log_file, "[KSCREEN-INPUT] automatikus felismerés tiltva: nincs használható mentett KScreen bemenet")
+            self.status_label.setText("Mentett KScreen bemenet hiányzik. Automatikus felismerés nem futtatható.")
             self._refresh_auto_button_text()
             return
 
-        self.status_label.setText("Profil felismerése mentett xrandr kimenetből…")
+        self.status_label.setText("Profil felismerése mentett KScreen kimenetből…")
         QApplication.processEvents()
         self._set_buttons_enabled(False)
 
         try:
-            profile_name, detail = detect_saved_xrandr_setup(self.log_file)
+            profile_name, detail = detect_saved_kscreen_setup(self.log_file)
             log(self.log_file, f"[AUTODETECT] selected_profile={profile_name}")
             log(self.log_file, f"[AUTODETECT] detail={detail}")
 
@@ -590,25 +678,25 @@ class MonitorSetupApp(QWidget):
 
     def _refresh_auto_button_text(self):
         try:
-            has_input = has_usable_xrandr_input()
+            has_input = has_usable_kscreen_input()
 
             if has_input:
                 self.b_auto.setText("🪄 Felismerés fájlból")
                 self.b_auto.setToolTip(
-                    "Profil felismerése kizárólag a mentett xrandr-input.txt fájlból. "
-                    "Élő xrandr lekérdezést nem futtat."
+                    "Profil felismerése kizárólag a mentett kscreen-input.txt fájlból. "
+                    "Az aktuális KScreen ID-ket csak profilalkalmazáskor kéri le."
                 )
-                self.status_label.setText("Mentett xrandr bemenet betöltve. A profilgombok használhatók.")
+                self.status_label.setText("Mentett KScreen bemenet betöltve. A profilgombok használhatók.")
             else:
-                self.b_auto.setText("🪄 xrandr bemenet hiányzik")
+                self.b_auto.setText("🪄 KScreen bemenet hiányzik")
                 self.b_auto.setToolTip(
-                    "Másold be az xrandr teljes kimenetét a "
-                    "~/.config/monitor-config/xrandr-input.txt fájlba."
+                    "Másold be a kscreen-doctor -o teljes kimenetét a "
+                    "~/.config/monitor-config/kscreen-input.txt fájlba."
                 )
-                self.status_label.setText("Mentett xrandr bemenet üres. A profilgombok inaktívak.")
+                self.status_label.setText("Mentett KScreen bemenet üres. A profilgombok inaktívak.")
 
             # Szándékosan szigorú:
-            # ha nincs használható mentett xrandr bemenet, se autodetect,
+            # ha nincs használható mentett KScreen bemenet, se autodetect,
             # se kézi profilalkalmazás ne fusson.
             for b in (self.b_auto, self.b1, self.b2, self.b3):
                 b.setEnabled(has_input)
@@ -617,8 +705,8 @@ class MonitorSetupApp(QWidget):
             self.b_relearn.setEnabled(True)
 
         except Exception as e:
-            log(self.log_file, f"[XRANDR-INPUT] button refresh FAIL: {e}")
-            self.b_auto.setText("🪄 xrandr bemenet hiányzik")
+            log(self.log_file, f"[KSCREEN-INPUT] button refresh FAIL: {e}")
+            self.b_auto.setText("🪄 KScreen bemenet hiányzik")
             for b in (self.b_auto, self.b1, self.b2, self.b3):
                 b.setEnabled(False)
             self.b_relearn.setEnabled(True)
@@ -639,12 +727,12 @@ class MonitorSetupApp(QWidget):
             notify("Névjegy hiba", str(e), "critical", 6000, self.log_file)
 
     def apply_profile(self, name: str):
-        if not has_usable_xrandr_input():
-            log(self.log_file, "[XRANDR-INPUT] profil alkalmazása tiltva: nincs használható mentett xrandr bemenet")
-            self.status_label.setText("Mentett xrandr bemenet hiányzik. Profil alkalmazása letiltva.")
+        if not has_usable_kscreen_input():
+            log(self.log_file, "[KSCREEN-INPUT] profil alkalmazása tiltva: nincs használható mentett KScreen bemenet")
+            self.status_label.setText("Mentett KScreen bemenet hiányzik. Profil alkalmazása letiltva.")
             notify(
-                "xrandr bemenet hiányzik",
-                "A profilgombok csak használható xrandr-input.txt mellett aktívak.",
+                "KScreen bemenet hiányzik",
+                "A profilgombok csak használható kscreen-input.txt mellett aktívak.",
                 "normal",
                 4000,
                 self.log_file,
@@ -656,68 +744,31 @@ class MonitorSetupApp(QWidget):
         QApplication.processEvents()
         self._set_buttons_enabled(False)
         try:
-            # ------------------ X11 ág ------------------
-            if not is_wayland():
-                profile = X11_PROFILES.get(name)
-                if not profile:
-                    notify(
-                        "Infó",
-                        "Ehhez az X11 profilhoz nincs definíció.",
-                        "normal",
-                        4000,
-                        self.log_file,
-                    )
-                    return
-
-                enabled_roles = profile.get("enabled_roles", [])
-                layout = profile.get("layout", "")
-                description = profile.get("description", "")
-
-                log(self.log_file, f"[APPLY] profile={name}")
-                log(self.log_file, f"[APPLY] enabled_roles={enabled_roles}")
-                log(self.log_file, f"[APPLY] layout={layout}")
-                log(self.log_file, f"[APPLY] description={description}")
-                log(self.log_file, "[APPLY] dinamikus xrandr parancsgenerálás még nincs bekötve")
-
-                self.sb_msg.setText(f'Aktuális: "{name}"')
-                self.status_label.setText(
-                    f"A(z) '{name}' profil felismerve, de az új dinamikus X11 parancsgenerálás még nincs bekötve."
-                )
-
-                notify(
-                    "Profil felismerve",
-                    "Az új profildefiníció működik, de az xrandr parancsgenerálás még nincs bekötve.",
-                    "normal",
-                    5000,
-                    self.log_file,
-                )
-                return
-
-
-
-
-
-
-
-            # ---------------- Wayland ág ----------------
             if not has_kscreen_doctor(self.log_file):
                 notify("Kijelző hiba", "A 'kscreen-doctor' nem érhető el.", "critical", 8000, self.log_file)
                 return
 
-            log(self.log_file, f"apply_profile: name={name}, DRY_RUN={DRY_RUN}, wayland=True")
-
-            if name == "Laptop (csak)":
-                ok, msg = wl_apply_laptop_only(self.log_file)
-            elif name == "Laptop + Soundbar":
-                ok, msg = wl_apply_laptop_soundbar(self.log_file)
-            elif name == "Laptop + TV + Soundbar":
-                ok, msg = wl_apply_all(self.log_file)
-            else:
-                notify("Kijelző hiba", f"Nincs profil ehhez: {name}", "critical", 8000, self.log_file)
-                return
+            log(self.log_file, f"[APPLY] profile={name}, DRY_RUN={DRY_RUN}, backend=kscreen-doctor")
+            command = build_kscreen_command(name, self.log_file)
+            log(self.log_file, f"[APPLY] generated={command}")
+            ok, msg = run_sequence([command], self.log_file)
 
             if ok:
-                notify("Kijelző beállítva", "Profil alkalmazva (Wayland).", "normal", 4000, self.log_file)
+                if name == PROFILE_LAPTOP:
+                    log(self.log_file, "[PLASMA] újraindítás a Laptop (csak) profil után")
+                    run_cmd(
+                        "kquitapp5 plasmashell || kquitapp6 plasmashell",
+                        self.log_file,
+                    )
+                    time.sleep(1)
+                    run_cmd(
+                        "kstart5 plasmashell || kstart6 plasmashell",
+                        self.log_file,
+                    )
+
+                self.sb_msg.setText(f'Aktuális: "{name}"')
+                self.status_label.setText(f"A(z) '{name}' profil alkalmazva.")
+                notify("Kijelző beállítva", "Profil alkalmazva (KScreen).", "normal", 4000, self.log_file)
             else:
                 notify("Kijelző hiba", msg if isinstance(msg, str) else str(msg), "critical", 8000, self.log_file)
 

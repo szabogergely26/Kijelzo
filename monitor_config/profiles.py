@@ -1,66 +1,53 @@
 # -*- coding: utf-8 -*-
-"""
-Monitor-config profil definíciók.
-
-Fontos:
-- Itt NINCS konkrét xrandr kimenetnév.
-- Itt NINCS gépre égetett felbontás vagy pozíció.
-- Ez a fájl csak azt írja le, hogy egy profil milyen kijelző-szerepeket akar használni.
-
-A konkrét outputok, például:
-    eDP
-    HDMI-A-0
-    DisplayPort-1
-    HDMI-1-0
-    DP-1-0
-
-mind az aktuális / mentett xrandr kimenetből jönnek.
-"""
+"""A gépfüggetlen KScreen profilok közös definíciói."""
 
 
-# X11 profilok – gépfüggetlen profil-szándékok
+PROFILE_LAPTOP = "Laptop (csak)"
+PROFILE_LAPTOP_SOUNDBAR = "Laptop + Soundbar"
+PROFILE_ALL = "Laptop + TV + Soundbar"
 
-X11_PROFILES = {
-    "Laptop (csak)": {
-        "enabled_roles": ["laptop"],
-        "layout": "laptop_only",
+
+KSCREEN_PROFILES = {
+    PROFILE_LAPTOP: {
+        "enabled_roles": ("laptop",),
         "description": "Csak a laptop kijelző aktív.",
     },
-
-    "Laptop + Soundbar": {
-        "enabled_roles": ["laptop", "soundbar"],
-        "layout": "laptop_soundbar",
-        "description": "Laptop + soundbar, TV kikapcsolva.",
+    PROFILE_LAPTOP_SOUNDBAR: {
+        "enabled_roles": ("laptop", "soundbar"),
+        "description": "A laptop és a soundbar kijelző-ága aktív.",
     },
-
-    "Laptop + TV + Soundbar": {
-        "enabled_roles": ["laptop", "tv", "soundbar"],
-        "layout": "tv_laptop_soundbar",
-        "description": "TV fent, laptop alatta, soundbar aktív.",
+    PROFILE_ALL: {
+        "enabled_roles": ("laptop", "tv", "soundbar"),
+        "description": "A laptop, a TV és a soundbar kijelző-ága aktív.",
     },
 }
 
 
-PROFILE_ORDER = [
-    "Laptop (csak)",
-    "Laptop + Soundbar",
-    "Laptop + TV + Soundbar",
-]
+PROFILE_ORDER = (
+    PROFILE_LAPTOP,
+    PROFILE_LAPTOP_SOUNDBAR,
+    PROFILE_ALL,
+)
 
 
-DEFAULT_X11_PROFILE = "Laptop (csak)"
+DEFAULT_PROFILE = PROFILE_LAPTOP
 
 
-def get_x11_profile_names():
-    """Visszaadja a profilneveket a kívánt GUI-sorrendben."""
-    return [name for name in PROFILE_ORDER if name in X11_PROFILES]
+def get_profile_names() -> list[str]:
+    return list(PROFILE_ORDER)
 
 
-def get_x11_profile(profile_name):
-    """Egy X11 profil definíciójának lekérése név alapján."""
-    return X11_PROFILES.get(profile_name)
+def get_profile(profile_name: str):
+    return KSCREEN_PROFILES.get(profile_name)
 
 
-def get_default_x11_profile_name():
-    """Alapértelmezett X11 profil neve."""
-    return DEFAULT_X11_PROFILE
+def get_default_profile_name() -> str:
+    return DEFAULT_PROFILE
+
+
+# Kompatibilitás a régebbi modulnevekkel; új kód már a fenti neveket használja.
+X11_PROFILES = KSCREEN_PROFILES
+DEFAULT_X11_PROFILE = DEFAULT_PROFILE
+get_x11_profile_names = get_profile_names
+get_x11_profile = get_profile
+get_default_x11_profile_name = get_default_profile_name

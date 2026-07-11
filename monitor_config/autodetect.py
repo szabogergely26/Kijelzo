@@ -1,169 +1,58 @@
 # -*- coding: utf-8 -*-
 
+from .kscreen_input import KScreenParsedState, get_saved_kscreen_state, parse_kscreen_text
 from .log_utils import log
-from .x11 import x11_active_outputs, x11_connected_outputs
-from .xrandr_input import get_saved_xrandr_state
 
 
-def normalize_connected_outputs(raw_names: set[str]) -> set[str]:
-    """
-    Különböző rendszerek / driverek eltérő neveit közös logikai nevekre húzza össze.
-    """
-    norm = set()
-
-    for name in raw_names:
-        low = name.lower()
-
-        # belső kijelző
-        if low in {"edp", "edp-1", "edp1"}:
-            norm.add("eDP")
-            continue
-
-        # HDMI
-        if (
-            low in {"hdmi-a-0", "hdmi-a-1", "hdmi-0", "hdmi-1", "hdmi"}
-            or low.startswith("hdmi")
-        ):
-            norm.add("HDMI")
-            continue
-
-        # DP / soundbar
-        if (
-            low in {"dp-2", "displayport-2", "displayport-1", "dp2", "dp1"}
-            or "displayport" in low
-            or low.startswith("dp-")
-        ):
-            norm.add("DP")
-            continue
-
-    return norm
-
-
-def detect_current_active_setup(f=None):
-    """
-    Az aktuálisan AKTÍV X11 elrendezést próbálja profilnévre fordítani.
-    """
-    raw = x11_active_outputs(f)
-    norm = normalize_connected_outputs(raw)
+def _detect_from_state(state: KScreenParsedState, f=None, source="KScreen"):
+    connected = [output for output in state.outputs.values() if output.connected]
+    enabled = [output for output in connected if output.enabled]
+    panels = [output for output in connected if output.is_panel]
+    external = [output for output in connected if not output.is_panel]
 
     if f:
-        log(f, f"[ACTIVE-DETECT] raw_active={sorted(raw)}")
-        log(f, f"[ACTIVE-DETECT] normalized={sorted(norm)}")
+        log(f, f"[{source}-DETECT] connected={[o.name for o in connected]}")
+        log(f, f"[{source}-DETECT] enabled={[o.name for o in enabled]}")
+        log(f, f"[{source}-DETECT] panels={[o.name for o in panels]}")
+        log(f, f"[{source}-DETECT] external={[o.name for o in external]}")
 
-    if norm == {"eDP"}:
-        return "Laptop (csak)"
-
-    if norm == {"eDP", "DP"}:
-        return "Laptop + Soundbar"
-
-    if {"eDP", "HDMI", "DP"}.issubset(norm):
-        return "Laptop + TV + Soundbar"
-
-    if {"eDP", "HDMI"}.issubset(norm):
-        return "Laptop + TV + Soundbar"
-
-    return "ismeretlen"
-
-
-def detect_current_setup(f=None, is_wayland_func=None):
-    """
-    Visszaad:
-      (profil_név, részletes_szöveg)
-
-    Lenovo LOQ-only fix verzió:
-      eDP      = laptop kijelző
-      HDMI-1-0 = LG TV
-      DP-1-0   = Citation / Soundbar HDMI audio-kijelző
-    """
-    if is_wayland_func is not None and is_wayland_func():
+    if len(panels) != 1:
         return (
-            "Laptop (csak)",
-            "Wayland jelenleg nincs támogatva ebben a LOQ-only verzióban",
+            "ismeretlen",
+            "A laptop belső kijelzője nem azonosítható egyértelműen.",
         )
 
-    raw = x11_connected_outputs(f)
-    backend = "X11"
-
-    if f:
-        log(f, f"[AUTODETECT] backend={backend}")
-        log(f, f"[AUTODETECT] raw_connected={sorted(raw)}")
-
-    has_edp = "eDP" in raw
-    has_tv = "HDMI-1-0" in raw
-    has_soundbar = "DP-1-0" in raw
-
-    if has_edp and has_tv and has_soundbar:
+    if len(external) >= 2:
         return (
             "Laptop + TV + Soundbar",
-            f"{backend}: LOQ laptop + TV + soundbar csatlakoztatva",
+            "Laptop + két külső kijelző elérhető.",
         )
 
-    if has_edp and has_soundbar:
+    if len(external) == 1:
         return (
             "Laptop + Soundbar",
-            f"{backend}: LOQ laptop + soundbar csatlakoztatva",
-        )
-
-    if has_edp:
-        return (
-            "Laptop (csak)",
-            f"{backend}: LOQ laptop kijelző érzékelve",
+            "Laptop + egy külső kijelző elérhető.",
         )
 
     return (
         "Laptop (csak)",
-        f"{backend}: nem egyértelmű LOQ felállás, fallback = Laptop",
+        "Csak a laptop kijelzője érhető el.",
     )
 
 
-def detect_saved_xrandr_setup(f=None):
-    """
-    A mentett xrandr-input.txt alapján választ profilt.
+def detect_saved_kscreen_setup(f=None):
+    """A mentett `kscreen-input.txt` alapján választ elérhető profilt."""
+    return _detect_from_state(
+        get_saved_kscreen_state(),
+        f=f,
+        source="KSCREEN-FILE",
+    )
 
-    Fontos különbség:
-      connected_outputs → milyen eszközök érhetők el
-      active_outputs    → mi aktív jelenleg
 
-    Profilválasztásnál most a connected_outputs alapján döntünk,
-    mert a cél az, hogy a mentett hardverállapotból válasszunk elérhető profilt.
-    """
-    state = get_saved_xrandr_state()
-    connected = state.connected_outputs
-    active = state.active_outputs
-
-    if f:
-        log(f, f"[XRANDR-FILE-DETECT] connected={sorted(connected)}")
-        log(f, f"[XRANDR-FILE-DETECT] active={sorted(active)}")
-
-    has_edp = "eDP" in connected
-    has_tv = "HDMI-1-0" in connected
-    has_soundbar = "DP-1-0" in connected
-
-    if has_edp and has_tv and has_soundbar:
-        return (
-            "Laptop + TV + Soundbar",
-            "Mentett xrandr: LOQ laptop + TV + soundbar elérhető",
-        )
-
-    if has_edp and has_soundbar:
-        return (
-            "Laptop + Soundbar",
-            "Mentett xrandr: LOQ laptop + soundbar elérhető",
-        )
-
-    if has_edp and has_tv:
-        return (
-            "Laptop + TV + Soundbar",
-            "Mentett xrandr: LOQ laptop + TV elérhető, soundbar nélkül",
-        )
-
-    if has_edp:
-        return (
-            "Laptop (csak)",
-            "Mentett xrandr: csak a laptop kijelző biztosan elérhető",
-        )
-
-    return (
-        "Laptop (csak)",
-        "Mentett xrandr: nem egyértelmű felállás, fallback = Laptop",
+def detect_current_kscreen_setup(text: str, f=None):
+    """Egy friss `kscreen-doctor -o` kimenetből állapítja meg a felállást."""
+    return _detect_from_state(
+        parse_kscreen_text(text),
+        f=f,
+        source="KSCREEN-LIVE",
     )

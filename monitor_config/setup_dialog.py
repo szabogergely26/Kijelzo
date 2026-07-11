@@ -8,10 +8,10 @@ from PyQt5.QtWidgets import (
     QTextBrowser,
 )
 
-from .xrandr_input import XRANDR_INPUT_PATH
+from .kscreen_input import KSCREEN_INPUT_PATH
 
 
-class XrandrFirstRunDialog(QDialog):
+class KScreenFirstRunDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -22,7 +22,7 @@ class XrandrFirstRunDialog(QDialog):
         text = f"""
 <h2>Első kijelzőfelvétel</h2>
 
-<p>A program még nem talál használható <code>xrandr</code> kimenetet.</p>
+<p>A program még nem talál használható <code>kscreen-doctor</code> kimenetet.</p>
 
 <p>Az automatikus profilválasztáshoz először mentsd el a kijelzők aktuális állapotát.</p>
 
@@ -31,20 +31,21 @@ class XrandrFirstRunDialog(QDialog):
   <li>Írd be ezt a parancsot:</li>
 </ol>
 
-<pre>xrandr</pre>
+<pre>kscreen-doctor -o</pre>
 
 <ol start="3">
   <li>A teljes kimenetet másold be ebbe a fájlba:</li>
 </ol>
 
-<pre>{XRANDR_INPUT_PATH}</pre>
+<pre>{KSCREEN_INPUT_PATH}</pre>
 
 <p>Ezután nyomd meg újra a <b>Profil felismerése</b> gombot.</p>
 
 <hr/>
 
 <p><b>Tipp:</b> ha később megváltozik a TV, soundbar, kábel vagy driver állapota,
-egyszerűen frissítsd újra ezt a fájlt az aktuális <code>xrandr</code> kimenettel.</p>
+egyszerűen frissítsd újra ezt a fájlt az aktuális
+<code>kscreen-doctor -o</code> kimenettel.</p>
 """
 
         view = QTextBrowser(self)
@@ -59,3 +60,7 @@ egyszerűen frissítsd újra ezt a fájlt az aktuális <code>xrandr</code> kimen
         lay = QVBoxLayout(self)
         lay.addWidget(view)
         lay.addWidget(btns)
+
+
+# Átmeneti kompatibilitás a még régi osztálynevet importáló app.py verziókhoz.
+XrandrFirstRunDialog = KScreenFirstRunDialog
