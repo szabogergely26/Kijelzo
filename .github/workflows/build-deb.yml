@@ -7,6 +7,7 @@ on:
     branches:
       - main
       - Preview
+      - Lenovo-LOQ
 
 jobs:
   build-deb:
