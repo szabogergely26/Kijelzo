@@ -619,7 +619,15 @@ class MonitorSetupApp(QWidget):
                 raise RuntimeError(err.strip() or "A kscreen-doctor -o lekérdezés sikertelen.")
 
             profile_name, detail = detect_current_kscreen_setup(live_text, self.log_file)
-            self.sb_msg.setText(f'Aktuális: "{profile_name}"')
+            
+            display_name = {
+                "Laptop (csak)": "Laptop mód",
+                "Laptop + Soundbar": "Laptop mód + Zene",
+                "Laptop + TV + Soundbar": "Film / sorozat mód",
+            }.get(profile_name, profile_name)
+
+
+            self.sb_msg.setText(f'Aktuális: "{display_name}"')
             self.status_label.setText(f"Aktuális KScreen állapot: {detail}")
             log(self.log_file, f"[STARTUP] current_profile={profile_name}")
             log(self.log_file, f"[STARTUP] current_detail={detail}")
@@ -770,8 +778,15 @@ class MonitorSetupApp(QWidget):
                         self.log_file,
                     )
 
-                self.sb_msg.setText(f'Aktuális: "{name}"')
-                self.status_label.setText(f"A(z) '{name}' profil alkalmazva.")
+                display_name = {
+                    "Laptop (csak)": "Laptop mód",
+                    "Laptop + Soundbar": "Laptop mód + Zene",
+                    "Laptop + TV + Soundbar": "Film / sorozat mód",
+                }.get(name, name)
+
+
+                self.sb_msg.setText(f'Aktuális: "{display_name}"')
+                self.status_label.setText(f"A(z) '{display_name}' profil alkalmazva.")
                 notify("Kijelző beállítva", "Profil alkalmazva (KScreen).", "normal", 4000, self.log_file)
             else:
                 notify("Kijelző hiba", msg if isinstance(msg, str) else str(msg), "critical", 8000, self.log_file)
