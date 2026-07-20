@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            { "Name": "szaboger" }
+        ],
+        "Category": "System Information",
+        "Description": "Laptop kijelző (eDP) automatikus elsötétítésének be/ki kapcsolása és állapot (eDP / HDMI / Soundbar) megjelenítése",
+        "Icon": "video-display",
+        "Id": "org.szaboger.kijelzovalto",
+        "Name": "Kijelző váltó",
+        "Version": "0.1"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-NotificationAreaCategory": "Hardware"
+}

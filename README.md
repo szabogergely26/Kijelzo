@@ -1,8 +1,22 @@
 # Monitor-config / Kijelzőprofil-váltó
 
+
 A **Monitor-config** egy saját használatra készült, PyQt5-alapú kijelzőprofil-váltó KDE Plasma környezethez.
 
 A program célja, hogy a laptop kijelzője, a TV és a Soundbar között gyorsan, biztonságosan és ismételhetően lehessen váltani anélkül, hogy minden alkalommal kézzel kellene `xrandr` vagy `kscreen-doctor` parancsokat futtatni.
+
+
+## Változások
+
+### 0.1.3 – 2026.07.20
+- A `org.szaboger.kijelzovalto` plasmoid mostantól a `.deb` csomag része,
+  nem kell külön kézzel telepíteni.
+
+
+
+
+
+
 
 ## Jelenlegi állapot
 
@@ -276,7 +290,6 @@ Tervezett vagy lehetséges további fejlesztések:
 
 - további gép- és kijelzőprofilok;
 - profilok külső konfigurációs fájlba szervezése;
-- egyszerű KDE Plasma plasmoid;
 - parancssori profilalkalmazás;
 - `--status`, `--version`, `--about` és diagnosztikai kapcsolók;
 - modernebb grafikus felület;

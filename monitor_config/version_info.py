@@ -2,7 +2,7 @@
 
 APP_NAME = "Display Switcher"
 APP_DISPLAY_NAME = "Kijelző beállítások"
-APP_VERSION = "3.0"
+APP_VERSION = "0.1.3"
 APP_CHANNEL = "loq-local"
 
 
