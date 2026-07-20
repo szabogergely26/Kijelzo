@@ -61,24 +61,70 @@ from .kscreen_input import (
 )
 
 
-def _find_live_mode(saved: KScreenOutput, live: KScreenOutput) -> str:
-    wanted = saved.active_mode or saved.preferred_mode
-    if wanted:
-        exact = next((mode for mode in live.modes if mode.token == wanted), None)
-        if exact:
-            return exact.mode_id
+def _mode_resolution(token: str) -> tuple[int, int]:
+    match = re.match(r"(\d+)x(\d+)@", token)
+    if not match:
+        return (0, 0)
+    return (int(match.group(1)), int(match.group(2)))
 
-        wanted_resolution = wanted.split("@", 1)[0]
-        same_resolution = [
-            mode for mode in live.modes if mode.token.split("@", 1)[0] == wanted_resolution
-        ]
-        active = next((mode for mode in same_resolution if mode.active), None)
-        preferred = next((mode for mode in same_resolution if mode.preferred), None)
-        fallback = active or preferred or (same_resolution[0] if same_resolution else None)
-        if fallback:
-            return fallback.mode_id
 
-    raise RuntimeError(f"Nem található megfelelő aktuális mód ehhez: {saved.name}")
+def _max_mode_area(output: KScreenOutput) -> int:
+    areas = [w * h for w, h in (_mode_resolution(mode.token) for mode in output.modes)]
+    return max(areas) if areas else 0
+
+
+def _pick_target_mode(output: KScreenOutput) -> tuple[str, int, int]:
+    """A kimenet célmódja: a jelenleg aktív, majd a preferált mód, a felbontásával együtt."""
+    wanted_token = output.active_mode or output.preferred_mode
+    mode = None
+    if wanted_token:
+        mode = next((m for m in output.modes if m.token == wanted_token), None)
+    if mode is None:
+        mode = next((m for m in output.modes if m.preferred), None)
+    if mode is None and output.modes:
+        mode = output.modes[0]
+    if mode is None:
+        raise RuntimeError(f"Nincs elérhető mód ehhez: {output.name}")
+    width, height = _mode_resolution(mode.token)
+    return mode.mode_id, width, height
+
+
+def classify_live_outputs(live_state):
+    """
+    A laptop/tv/soundbar szerepeket a JELENLEG ÉLŐ KScreen állapotból azonosítja,
+    a kimenetek maximálisan elérhető felbontása alapján — nem a kimenet nevéből
+    és nem egy korábban mentett fájlból. Így akkor is helyesen működik, ha a
+    kimenetek neve/sorrendje időközben megváltozik (pl. újracsatlakoztatás után).
+
+    A laptop mindig az egyetlen csatlakoztatott "Panel" típusú kimenet.
+    A külső kimenetek közül a nagyobb elérhető felbontású a TV, a kisebb a
+    Soundbar (a soundbar egy hangroutáshoz használt ál-kijelző, jellemzően
+    nem nagyobb Full HD-nél).
+
+    None-nal tér vissza, ha a laptop kijelző nem azonosítható egyértelműen
+    (ekkor a hívó a mentett fájlra eshet vissza).
+    """
+    connected = [output for output in live_state.outputs.values() if output.connected]
+    panels = [output for output in connected if output.is_panel]
+    if len(panels) != 1:
+        return None
+
+    laptop = panels[0]
+    external = [output for output in connected if not output.is_panel]
+    ranked = sorted(external, key=_max_mode_area, reverse=True)
+
+    tv = ranked[0] if len(ranked) >= 2 else None
+    soundbar = ranked[1] if len(ranked) >= 2 else (ranked[0] if len(ranked) == 1 else None)
+
+    return laptop, tv, soundbar, connected
+
+
+def live_detection_available(logf=None) -> bool:
+    """Igaz, ha a profilgombok élőben (mentett fájl nélkül) is használhatók."""
+    rc, live_text, _err = run_cmd("kscreen-doctor -o", logf)
+    if rc != 0:
+        return False
+    return classify_live_outputs(parse_kscreen_text(live_text)) is not None
 
 
 def _classify_saved_outputs():
@@ -109,53 +155,86 @@ def build_kscreen_command(profile_name: str, logf=None) -> str:
         raise RuntimeError(err.strip() or "A kscreen-doctor -o lekérdezés sikertelen.")
 
     live_state = parse_kscreen_text(live_text)
-    laptop, tv, soundbar, connected = _classify_saved_outputs()
+
+    # Elsődlegesen élőben azonosítjuk, melyik kimeneten milyen eszköz van
+    # (max. felbontás alapján). A mentett kscreen-input.txt csak akkor kell,
+    # ha ez az élő azonosítás nem egyértelmű (pl. a laptop-panel nem
+    # ismerhető fel) — így a kézi/mentett-fájlos beállítás opcióként megmarad.
+    classification = classify_live_outputs(live_state)
+    if classification is not None:
+        if logf:
+            log(logf, "[KSCREEN-CLASSIFY] szerepek forrása: élő állapot (max. felbontás)")
+        laptop, tv, soundbar, connected = classification
+    else:
+        if logf:
+            log(logf, "[KSCREEN-CLASSIFY] élő azonosítás nem egyértelmű, mentett fájl (kscreen-input.txt) alapján")
+        saved_laptop, saved_tv, saved_soundbar, _saved_connected = _classify_saved_outputs()
+        laptop = live_state.outputs.get(saved_laptop.name)
+        tv = live_state.outputs.get(saved_tv.name) if saved_tv else None
+        soundbar = live_state.outputs.get(saved_soundbar.name) if saved_soundbar else None
+        connected = [output for output in live_state.outputs.values() if output.connected]
+        if laptop is None:
+            raise RuntimeError(
+                f"A mentett fájl szerinti laptop-kijelző ({saved_laptop.name}) jelenleg nincs csatlakoztatva."
+            )
 
     if profile_name == PROFILE_LAPTOP:
         enabled = [laptop]
-        positions = {laptop.name: (0, 0)}
     elif profile_name == PROFILE_LAPTOP_SOUNDBAR:
         if soundbar is None:
-            raise RuntimeError("A mentett fájlban nincs külön soundbar-kimenet.")
+            raise RuntimeError("Nem található külön Soundbar-kimenet.")
         enabled = [laptop, soundbar]
-        positions = {
-            laptop.name: (0, 0),
-            soundbar.name: (laptop.geometry_size[0], 0),
-        }
     else:
         if tv is None or soundbar is None:
-            raise RuntimeError("A mentett fájlban nincs külön TV- és soundbar-kimenet.")
+            raise RuntimeError("Nem található külön TV- és Soundbar-kimenet.")
         enabled = [laptop, soundbar, tv]
-        # A teljes profil pontosan a KDE GUI-val létrehozott, fájlba mentett
-        # pozíciókat használja. Nem talál ki új átfedést vagy képernyőgeometriát.
-        positions = {output.name: output.position for output in enabled}
+
+    # A célmódokat (és azok WxH felbontását) még a pozíciószámítás előtt
+    # meghatározzuk — a pozíciók a TÉNYLEGES célfelbontásból számolnak,
+    # nem egy esetleg elavult/letiltott Geometry mezőből.
+    target_modes = {output.name: _pick_target_mode(output) for output in enabled}
+
+    if profile_name == PROFILE_LAPTOP:
+        positions = {laptop.name: (0, 0)}
+    elif profile_name == PROFILE_LAPTOP_SOUNDBAR:
+        _, laptop_w, _ = target_modes[laptop.name]
+        positions = {
+            laptop.name: (0, 0),
+            soundbar.name: (laptop_w, 0),
+        }
+    else:
+        _, tv_w, tv_h = target_modes[tv.name]
+        _, laptop_w, _ = target_modes[laptop.name]
+        laptop_pos = ((tv_w - laptop_w) // 2, tv_h)
+        # A soundbar (ál-kijelző, csak audio-útvonalhoz kell) a laptopra
+        # pozícionálva — a pontos hely vizuálisan nem számít.
+        positions = {
+            tv.name: (0, 0),
+            laptop.name: laptop_pos,
+            soundbar.name: laptop_pos,
+        }
 
     enabled_names = {output.name for output in enabled}
     parts = ["kscreen-doctor"]
 
-    for saved in enabled:
-        live = live_state.outputs.get(saved.name)
-        if live is None or not live.connected:
-            raise RuntimeError(f"A(z) {saved.name} jelenleg nincs csatlakoztatva.")
-        mode_id = _find_live_mode(saved, live)
-        x, y = positions[saved.name]
+    for output in enabled:
+        mode_id, _, _ = target_modes[output.name]
+        x, y = positions[output.name]
         parts.extend(
             [
-                f"output.{live.output_id}.enable",
-                f"output.{live.output_id}.mode.{mode_id}",
-                f"output.{live.output_id}.position.{x},{y}",
-                f"output.{live.output_id}.scale.1",
+                f"output.{output.output_id}.enable",
+                f"output.{output.output_id}.mode.{mode_id}",
+                f"output.{output.output_id}.position.{x},{y}",
+                f"output.{output.output_id}.scale.1",
             ]
         )
-        if saved.name == laptop.name:
-            parts.append(f"output.{live.output_id}.primary")
+        if output.name == laptop.name:
+            parts.append(f"output.{output.output_id}.primary")
 
-    for saved in connected:
-        if saved.name in enabled_names:
+    for output in connected:
+        if output.name in enabled_names:
             continue
-        live = live_state.outputs.get(saved.name)
-        if live is not None:
-            parts.append(f"output.{live.output_id}.disable")
+        parts.append(f"output.{output.output_id}.disable")
 
     return " ".join(parts)
 
@@ -496,6 +575,12 @@ class MonitorSetupApp(QWidget):
         self.b2 = QPushButton("💻 🔊  Laptop mód + Zene")
         self.b3 = QPushButton("💻 📺 🔊  Film / Sorozat mód")
 
+        self.b_restart_shell = QPushButton("🔧 Asztal helyreállítása")
+        self.b_restart_shell.setToolTip(
+            "Csak a plasmashell újraindítása, kijelző-profilváltás nélkül — akkor "
+            "hasznos, ha az asztal (háttér/ikonok) elszállt, de a panel még megy."
+        )
+
         self._refresh_auto_button_text()
 
         auto_row = QHBoxLayout()
@@ -519,6 +604,12 @@ class MonitorSetupApp(QWidget):
 
             self.lay.addLayout(row)
 
+        restart_row = QHBoxLayout()
+        restart_row.addStretch()
+        restart_row.addWidget(self.b_restart_shell)
+        restart_row.addStretch()
+        self.lay.addLayout(restart_row)
+
 
 
         # Signálok:
@@ -528,6 +619,7 @@ class MonitorSetupApp(QWidget):
         self.b1.clicked.connect(lambda: self.apply_profile(PROFILE_LAPTOP))
         self.b2.clicked.connect(lambda: self.apply_profile(PROFILE_LAPTOP_SOUNDBAR))
         self.b3.clicked.connect(lambda: self.apply_profile(PROFILE_ALL))
+        self.b_restart_shell.clicked.connect(self.restart_shell)
 
 
 
@@ -558,8 +650,8 @@ class MonitorSetupApp(QWidget):
 
         #  - Ablakméret:
         # -----------------
-        self.setMinimumSize(400, 300)       # x, y
-        self.setFixedSize(400,300)
+        self.setMinimumSize(400, 340)       # x, y
+        self.setFixedSize(400, 340)
 
         # A profilalkalmazás minden támogatott munkamenetben KScreenen keresztül történik.
         if not has_kscreen_doctor(self.log_file):
@@ -599,20 +691,12 @@ class MonitorSetupApp(QWidget):
         """
         Induláskori státusz a pillanatnyi, engedélyezett KScreen-kimenetekből.
 
-        Fontos:
-        - ha a fájl üres vagy hibás, a profilgombok inaktívak
-        - a mentett fájl a profilok alapja, nem az aktuális státusz forrása
+        A jelenlegi állapot mindig élőben kerül lekérdezésre — nem függ a
+        mentett kscreen-input.txt fájltól (az csak a profilalkalmazásnál
+        esetleges fallback, ha az élő laptop-panel azonosítás nem egyértelmű).
         """
         try:
             log(self.log_file, "[DETECT] aktuális profil forrása: élő KScreen állapot")
-
-            if not has_usable_kscreen_input():
-                log(self.log_file, "[KSCREEN-INPUT] mentett KScreen bemenet üres vagy nem használható")
-                self.sb_msg.setText('Aktuális: "nincs mentett KScreen bemenet"')
-                self.status_label.setText(
-                    "Mentett KScreen bemenet üres. Másold be a kscreen-doctor -o teljes kimenetét."
-                )
-                return
 
             rc, live_text, err = run_cmd("kscreen-doctor -o", self.log_file)
             if rc != 0:
@@ -638,6 +722,27 @@ class MonitorSetupApp(QWidget):
 
 
 
+    def restart_shell(self):
+        """
+        Önálló asztal-helyreállítás: csak a plasmashell újraindítása,
+        kijelző-profilváltás nélkül. Arra az esetre, ha a KDE/KScreen
+        asztal-konténere magától beragad (fekete asztal, eltűnt ikonok,
+        de a panel/menü még megy) — ez ismert KDE/KScreen oldali hiba,
+        nem a monitor-config logikájáé.
+        """
+        self.status_label.setText("Asztal helyreállítása (plasmashell újraindítása)…")
+        QApplication.processEvents()
+        self.b_restart_shell.setEnabled(False)
+        try:
+            log(self.log_file, "[PLASMA] kézi asztal-helyreállítás kérve (GUI)")
+            run_cmd("kquitapp5 plasmashell || kquitapp6 plasmashell", self.log_file)
+            time.sleep(1)
+            run_cmd("kstart5 plasmashell || kstart6 plasmashell", self.log_file)
+            notify("Asztal helyreállítva", "A plasmashell újraindult.", "normal", 4000, self.log_file)
+        finally:
+            self.b_restart_shell.setEnabled(True)
+            self.status_label.setText("Válassz profilt a beállításhoz.")
+
     def relearn_displays(self):
         try:
             path = clear_kscreen_input_file()
@@ -659,18 +764,26 @@ class MonitorSetupApp(QWidget):
     def auto_detect_and_apply(self):
         self._refresh_auto_button_text()
 
-        if not has_usable_kscreen_input():
-            log(self.log_file, "[KSCREEN-INPUT] automatikus felismerés tiltva: nincs használható mentett KScreen bemenet")
-            self.status_label.setText("Mentett KScreen bemenet hiányzik. Automatikus felismerés nem futtatható.")
-            self._refresh_auto_button_text()
-            return
-
-        self.status_label.setText("Profil felismerése mentett KScreen kimenetből…")
+        self.status_label.setText("Kijelzők felismerése…")
         QApplication.processEvents()
         self._set_buttons_enabled(False)
 
         try:
-            profile_name, detail = detect_saved_kscreen_setup(self.log_file)
+            rc, live_text, err = run_cmd("kscreen-doctor -o", self.log_file)
+            if rc != 0:
+                raise RuntimeError(err.strip() or "A kscreen-doctor -o lekérdezés sikertelen.")
+
+            if classify_live_outputs(parse_kscreen_text(live_text)) is not None:
+                profile_name, detail = detect_current_kscreen_setup(live_text, self.log_file)
+                log(self.log_file, "[AUTODETECT] forrás: élő KScreen állapot")
+            elif has_usable_kscreen_input():
+                profile_name, detail = detect_saved_kscreen_setup(self.log_file)
+                log(self.log_file, "[AUTODETECT] forrás: mentett KScreen bemenet (élő azonosítás nem egyértelmű)")
+            else:
+                raise RuntimeError(
+                    "A laptop-kijelző élőben nem azonosítható, és nincs használható mentett KScreen bemenet sem."
+                )
+
             log(self.log_file, f"[AUTODETECT] selected_profile={profile_name}")
             log(self.log_file, f"[AUTODETECT] detail={detail}")
 
@@ -690,35 +803,41 @@ class MonitorSetupApp(QWidget):
 
     def _refresh_auto_button_text(self):
         try:
-            has_input = has_usable_kscreen_input()
+            has_live = live_detection_available(self.log_file)
+            has_saved = has_usable_kscreen_input()
+            can_apply = has_live or has_saved
 
-            if has_input:
+            if has_live:
+                self.b_auto.setText("🪄 Automatikus felismerés")
+                self.b_auto.setToolTip(
+                    "Profil felismerése és alkalmazása a jelenleg csatlakoztatott kijelzők "
+                    "élő állapota (max. felbontás) alapján."
+                )
+                self.status_label.setText("Élő kijelző-felismerés elérhető. A profilgombok használhatók.")
+            elif has_saved:
                 self.b_auto.setText("🪄 Felismerés fájlból")
                 self.b_auto.setToolTip(
-                    "Profil felismerése kizárólag a mentett kscreen-input.txt fájlból. "
-                    "Az aktuális KScreen ID-ket csak profilalkalmazáskor kéri le."
+                    "Élő felismerés nem egyértelmű (pl. a laptop-panel nem azonosítható). "
+                    "Profil felismerése a mentett kscreen-input.txt fájlból."
                 )
-                self.status_label.setText("Mentett KScreen bemenet betöltve. A profilgombok használhatók.")
+                self.status_label.setText("Élő felismerés nem egyértelmű — mentett fájl alapján működik.")
             else:
-                self.b_auto.setText("🪄 KScreen bemenet hiányzik")
+                self.b_auto.setText("🪄 Kijelző nem azonosítható")
                 self.b_auto.setToolTip(
-                    "Másold be a kscreen-doctor -o teljes kimenetét a "
-                    "~/.config/monitor-config/kscreen-input.txt fájlba."
+                    "Sem élőben, sem mentett fájlból nem azonosítható egyértelműen a laptop-kijelző. "
+                    "Használd a \"Kijelzők újrafelvétele\" gombot."
                 )
-                self.status_label.setText("Mentett KScreen bemenet üres. A profilgombok inaktívak.")
+                self.status_label.setText("A laptop-kijelző nem azonosítható. A profilgombok inaktívak.")
 
-            # Szándékosan szigorú:
-            # ha nincs használható mentett KScreen bemenet, se autodetect,
-            # se kézi profilalkalmazás ne fusson.
             for b in (self.b_auto, self.b1, self.b2, self.b3):
-                b.setEnabled(has_input)
+                b.setEnabled(can_apply)
 
             # Az újrafelvétel / bemeneti fájl előkészítése mindig maradjon elérhető.
             self.b_relearn.setEnabled(True)
 
         except Exception as e:
             log(self.log_file, f"[KSCREEN-INPUT] button refresh FAIL: {e}")
-            self.b_auto.setText("🪄 KScreen bemenet hiányzik")
+            self.b_auto.setText("🪄 Kijelző nem azonosítható")
             for b in (self.b_auto, self.b1, self.b2, self.b3):
                 b.setEnabled(False)
             self.b_relearn.setEnabled(True)
@@ -739,12 +858,12 @@ class MonitorSetupApp(QWidget):
             notify("Névjegy hiba", str(e), "critical", 6000, self.log_file)
 
     def apply_profile(self, name: str):
-        if not has_usable_kscreen_input():
-            log(self.log_file, "[KSCREEN-INPUT] profil alkalmazása tiltva: nincs használható mentett KScreen bemenet")
-            self.status_label.setText("Mentett KScreen bemenet hiányzik. Profil alkalmazása letiltva.")
+        if not live_detection_available(self.log_file) and not has_usable_kscreen_input():
+            log(self.log_file, "[KSCREEN-INPUT] profil alkalmazása tiltva: sem élőben, sem mentett fájlból nem azonosítható a laptop-kijelző")
+            self.status_label.setText("A laptop-kijelző nem azonosítható. Profil alkalmazása letiltva.")
             notify(
-                "KScreen bemenet hiányzik",
-                "A profilgombok csak használható kscreen-input.txt mellett aktívak.",
+                "Kijelző nem azonosítható",
+                "Sem élőben, sem a mentett kscreen-input.txt-ből nem azonosítható egyértelműen a laptop-kijelző.",
                 "normal",
                 4000,
                 self.log_file,
@@ -766,17 +885,16 @@ class MonitorSetupApp(QWidget):
             ok, msg = run_sequence([command], self.log_file)
 
             if ok:
-                if name == PROFILE_LAPTOP:
-                    log(self.log_file, "[PLASMA] újraindítás a Laptop (csak) profil után")
-                    run_cmd(
-                        "kquitapp5 plasmashell || kquitapp6 plasmashell",
-                        self.log_file,
-                    )
-                    time.sleep(1)
-                    run_cmd(
-                        "kstart5 plasmashell || kstart6 plasmashell",
-                        self.log_file,
-                    )
+                log(self.log_file, "[PLASMA] újraindítás minden profilváltás után (asztal-konténer hiba elkerülése)")
+                run_cmd(
+                    "kquitapp5 plasmashell || kquitapp6 plasmashell",
+                    self.log_file,
+                )
+                time.sleep(1)
+                run_cmd(
+                    "kstart5 plasmashell || kstart6 plasmashell",
+                    self.log_file,
+                )
 
                 display_name = {
                     "Laptop (csak)": "Laptop mód",
