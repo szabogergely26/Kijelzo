@@ -9,7 +9,7 @@ cd "$PROJECT_ROOT"
 
 # Név, verzió:
 PACKAGE_NAME="monitor-config"
-VERSION="0.1.1"
+VERSION="0.1.2"
 BUILD_DIR="build/${PACKAGE_NAME}_${VERSION}_all"
 OUTPUT_DIR="dist"
 
