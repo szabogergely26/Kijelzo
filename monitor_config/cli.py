@@ -53,9 +53,9 @@ def _restart_plasmashell_detached(logf) -> None:
     túléli, még ha ezt a folyamatot időközben megölik is.
     """
     script = (
-        "sleep 0.3; "
+        "sleep 2; "
         "kquitapp5 plasmashell || kquitapp6 plasmashell; "
-        "sleep 1; "
+        "sleep 2,5; "
         "kstart5 plasmashell || kstart6 plasmashell"
     )
     log(logf, "[PLASMA] leválasztott újraindító háttérfolyamat indítása")

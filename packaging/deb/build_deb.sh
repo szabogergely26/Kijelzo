@@ -41,7 +41,7 @@ chmod 644 "$BUILD_DIR/usr/share/applications/monitor-config.desktop"
 chmod 644 "$BUILD_DIR/usr/share/plasma/plasmoids/org.szaboger.kijelzovalto/metadata.json"
 chmod 644 "$BUILD_DIR/usr/share/plasma/plasmoids/org.szaboger.kijelzovalto/contents/ui/main.qml"
 
-dpkg-deb --root-owner-group --build "$BUILD_DIR" "$OUTPUT_DIR/${PACKAGE_NAME}_${VERSION}_all.deb"
+dpkg-deb --root-owner-group --build "$BUILD_DIR" "$OUTPUT_DIR/${PACKAGE_NAME}_all.deb"
 
 echo
 echo "Elkészült:"
