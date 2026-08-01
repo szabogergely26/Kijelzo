@@ -2,7 +2,12 @@
 
 APP_NAME = "Display Switcher"
 APP_DISPLAY_NAME = "Kijelző beállítások"
-APP_VERSION = "0.1.3"
+
+# Verziószámozás: főverzió.kisebb-funkció.javítás (pl. 1.1.4)
+#   1. szám (főverzió) - nagy, esetleg nem visszafelé kompatibilis változás;
+#   2. szám (kisebb funkció) - új, visszafelé kompatibilis funkció/bővítés;
+#   3. szám (javítás) - hibajavítás, funkcióbővítés nélkül.
+APP_VERSION = "0.1.4"
 APP_CHANNEL = "loq-local"
 
 

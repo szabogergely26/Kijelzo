@@ -8,8 +8,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Név, verzió:
+# A verziószám egyetlen forrásból, a monitor_config/version_info.py
+# APP_VERSION értékéből származik - máshova (control, ez a script) ne
+# kerüljön kézzel beírt verziószám, mindig innen töltődik be.
 PACKAGE_NAME="monitor-config"
-VERSION="0.1.3"
+VERSION="$(python3 -c 'from monitor_config.version_info import APP_VERSION; print(APP_VERSION)')"
 BUILD_DIR="build/${PACKAGE_NAME}_${VERSION}_all"
 OUTPUT_DIR="dist"
 
@@ -18,6 +21,7 @@ mkdir -p "$BUILD_DIR/DEBIAN"
 mkdir -p "$OUTPUT_DIR"
 
 cp packaging/deb/control "$BUILD_DIR/DEBIAN/control"
+sed -i "s/@VERSION@/${VERSION}/" "$BUILD_DIR/DEBIAN/control"
 cp packaging/deb/postinst "$BUILD_DIR/DEBIAN/postinst"
 cp packaging/deb/prerm "$BUILD_DIR/DEBIAN/prerm"
 cp -a packaging/deb/root/. "$BUILD_DIR/"
