@@ -88,7 +88,7 @@ def _restart_plasmashell_detached(logf) -> None:
         "sleep 1; "
         "kquitapp5 plasmashell || kquitapp6 plasmashell; "
         "sleep 2; "
-        "kstart5 plasmashell || kstart6 plasmashell; "
+        "LC_ALL= LANG=hu_HU.UTF-8 kstart5 plasmashell || LC_ALL= LANG=hu_HU.UTF-8 kstart6 plasmashell; "
         "bglog 'plasmashell ujrainditasa kiadva'"
     )
     log(logf, "[PLASMA] leválasztott újraindító háttérfolyamat indítása")
