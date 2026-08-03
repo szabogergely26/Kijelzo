@@ -1,5 +1,5 @@
 # Monitor-config / Kijelzőprofil-váltó
-Részletesebb hibaleírás - Jegyzőkönyv: [changelog.md] (changelog.md)
+Részletesebb hibaleírás - Jegyzőkönyv: [changelog.md](changelog.md)
 
 A **Monitor-config** egy saját használatra készült, PyQt5-alapú kijelzőprofil-váltó KDE Plasma környezethez.
 
