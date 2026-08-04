@@ -5,30 +5,12 @@ A **Monitor-config** egy saját használatra készült, PyQt5-alapú kijelzőpro
 
 A program célja, hogy a laptop kijelzője, a TV és a Soundbar között gyorsan, biztonságosan és ismételhetően lehessen váltani anélkül, hogy minden alkalommal kézzel kellene `xrandr` vagy `kscreen-doctor` parancsokat futtatni.
 
-
-## Változások
-
-### 0.1.4 – 2026.08.01
-- Javítva a hidegindítású HDMI/TV-profilváltásnál (kikapcsolt → bekapcsolt)
-  jelentkező fekete képernyő (kurzorral): a `cli.py`
-  `_restart_plasmashell_detached()` függvénye eddig egy locale-függő,
-  hibásan tizedesvesszős `sleep 2,5` parancsot tartalmazott, ami más
-  (pl. `C`) locale alatt azonnal hibával elszállt, így a plasmashell a
-  HDMI stabilizálódása előtt indult újra. Helyette most `LC_ALL=C` és egy
-  `kscreen-doctor -o` kimenetét figyelő poll-loop biztosítja, hogy a
-  plasmashell csak a kijelzőállapot stabilizálódása után induljon újra
-  (timeout-tal biztosítva a végtelen várakozás ellen). A plasmoidból
-  (widgetből) indított profilváltás is érintett volt, javítva.
-
-### 0.1.3 – 2026.07.20
-- A `org.szaboger.kijelzovalto` plasmoid mostantól a `.deb` csomag része,
-  nem kell külön kézzel telepíteni.
+## A Változásokat és leírásukat a [changelog](changelog.md) tartalmazza
 
 
-
-
-
-
+> **Megjegyzés az AI-közreműködésről:** A kód nagy része AI (Claude) segítségével
+> készült, emberi tervezés, irányítás és folyamatos ellenőrzés mellett. A
+> funkcionalitásért és a projekt irányáért a szerző felel.
 
 ## Jelenlegi állapot
 
