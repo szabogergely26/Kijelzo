@@ -8,6 +8,7 @@ plasmoid) is meg tudják hívni ablak megnyitása nélkül.
 """
 
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -43,7 +44,7 @@ def print_current_status() -> int:
 def _restart_plasmashell_detached(logf) -> None:
     """
     A plasmashell újraindítása egy, a jelenlegi folyamattól teljesen
-    független (setsid-elt) háttérfolyamatból.
+    független háttérfolyamatból.
 
     Ha ezt a widgetből hívjuk, ez a python szkript maga is a plasmashell
     egyik (a "executable" Plasma5Support DataSource által indított)
@@ -51,8 +52,29 @@ def _restart_plasmashell_detached(logf) -> None:
     "kquitapp plasmashell" parancsot, a plasmashell a saját kilépésekor
     megölné a benne még futó gyermek-QProcess-t (ezt a szkriptet) is,
     mielőtt az elérne a "kstart"-ig — így az új plasmashell soha nem
-    indulna el. A start_new_session=True miatt ez a háttér-shell
-    túléli, még ha ezt a folyamatot időközben megölik is.
+    indulna el.
+
+    Ez a self-kill probléma csak a fél igazság: a start_new_session=True
+    (setsid) önmagában NEM elég. A setsid csak a job-control alapú
+    (SIGHUP, terminál-leválás) kilövés ellen véd — nem menti ki a
+    folyamatot abból a cgroup-ból, amiben elindult. Plasma 6 alatt a
+    plasmashell jellemzően egy systemd user unit/scope cgroup-jában fut,
+    és ha annak KillMode=control-group (gyakori alapbeállítás), akkor
+    amikor a plasmashell a "kquitapp"-tól kilép, a systemd az egész
+    cgroup-ot letakarítja — beleértve egy pusztán setsid-elt, de ugyanabban
+    a cgroup-ban maradt háttér-scriptet is, MÉG MIELŐTT az elérne a
+    "kstart"-ig. Ez okozta az időszakos ("hol jó, hol nem") hibát: a
+    plasmashell kilépett, de az új példányt indító script vele együtt
+    kimúlt, mielőtt a "kstart"-ot kiadhatta volna, és az asztal üresen
+    maradt (csak a már megnyitott ablakok, panel/kompozitor nélkül).
+
+    Ezért, ha elérhető, a "systemd-run --user --scope --collect"-tel egy
+    vadonatúj, plasmashell-től teljesen független scope-ba/cgroup-ba
+    tesszük a háttér-scriptet — ez már túléli a plasmashell cgroup-jának
+    megszűnését is, nem csak a szülő python-folyamat esetleges halálát.
+    Ha a "systemd-run" valamiért nem elérhető (pl. nem systemd-es
+    rendszer), visszaesünk a korábbi, pusztán setsid-elt megoldásra —
+    ez a self-kill esetet még mindig kezeli, csak a cgroup-osat nem.
 
     Hidegindítású HDMI/TV-profilváltásnál (kikapcsolt -> bekapcsolt) a
     TV-nek időbe telik, amíg a HDMI-jel stabilizálódik (EDID-olvasás,
@@ -91,9 +113,26 @@ def _restart_plasmashell_detached(logf) -> None:
         "LC_ALL= LANG=hu_HU.UTF-8 kstart5 plasmashell || LC_ALL= LANG=hu_HU.UTF-8 kstart6 plasmashell; "
         "bglog 'plasmashell ujrainditasa kiadva'"
     )
-    log(logf, "[PLASMA] leválasztott újraindító háttérfolyamat indítása")
+    systemd_run = shutil.which("systemd-run")
+    if systemd_run:
+        log(logf, "[PLASMA] leválasztott újraindító háttérfolyamat indítása (systemd-run --scope, cgroup-független)")
+        cmd = [
+            systemd_run,
+            "--user",
+            "--scope",
+            "--collect",
+            "--quiet",
+            "--",
+            "bash",
+            "-c",
+            script,
+        ]
+    else:
+        log(logf, "[PLASMA] leválasztott újraindító háttérfolyamat indítása (setsid fallback, systemd-run nem elérhető)")
+        cmd = ["bash", "-c", script]
+
     subprocess.Popen(
-        ["bash", "-c", script],
+        cmd,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
