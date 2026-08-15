@@ -1,4 +1,5 @@
 # Monitor-config / Kijelzőprofil-váltó
+
 Részletesebb hibaleírás - Napló: [changelog.md](changelog.md)
 
 A **Monitor-config** egy saját használatra készült, PyQt5-alapú kijelzőprofil-váltó KDE Plasma környezethez.
@@ -6,7 +7,6 @@ A **Monitor-config** egy saját használatra készült, PyQt5-alapú kijelzőpro
 A program célja, hogy a laptop kijelzője, a TV és a Soundbar között gyorsan, biztonságosan és ismételhetően lehessen váltani anélkül, hogy minden alkalommal kézzel kellene `xrandr` vagy `kscreen-doctor` parancsokat futtatni.
 
 ## A Változásokat és leírásukat a [changelog](changelog.md) tartalmazza
-
 
 > **Megjegyzés az AI-közreműködésről:** A kód nagy része AI (Claude) segítségével
 > készült, emberi tervezés, irányítás és folyamatos ellenőrzés mellett. A
