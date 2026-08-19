@@ -15,7 +15,7 @@ import sys
 from .app import build_kscreen_command, has_kscreen_doctor, run_sequence
 from .autodetect import detect_current_kscreen_setup
 from .command_utils import run_cmd
-from .config import LOG_FILE_PATH
+from .config import DRY_RUN, LOG_FILE_PATH
 from .log_utils import log, log_open
 from .notifications import init_notifications, notify
 from .profiles import KSCREEN_PROFILES
@@ -190,8 +190,11 @@ def apply_profile_headless(name: str) -> int:
             print(msg, file=sys.stderr)
             return 1
 
-        log(logf, "[PLASMA] újraindítás minden profilváltás után (asztal-konténer hiba elkerülése)")
-        _restart_plasmashell_detached(logf)
+        if DRY_RUN:
+            log(logf, "[DRY] would restart plasmashell (profilváltás után)")
+        else:
+            log(logf, "[PLASMA] újraindítás minden profilváltás után (asztal-konténer hiba elkerülése)")
+            _restart_plasmashell_detached(logf)
 
         notify("Kijelző beállítva", "Profil alkalmazva (KScreen).", "normal", 4000, logf)
         print("OK")

@@ -884,7 +884,9 @@ class MonitorSetupApp(QWidget):
             log(self.log_file, f"[APPLY] generated={command}")
             ok, msg = run_sequence([command], self.log_file)
 
-            if ok:
+            if ok and DRY_RUN:
+                log(self.log_file, "[DRY] would restart plasmashell (profilváltás után)")
+            elif ok:
                 log(self.log_file, "[PLASMA] újraindítás minden profilváltás után (asztal-konténer hiba elkerülése)")
                 run_cmd(
                     "kquitapp5 plasmashell || kquitapp6 plasmashell",
