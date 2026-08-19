@@ -4,8 +4,8 @@ exec >> /tmp/monitor-config-shortcut.log 2>&1
 echo "---- $(date) ----"
 
 export DISPLAY=:0
-export XAUTHORITY=/home/szaboger/.Xauthority
+export XAUTHORITY="$HOME/.Xauthority"
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 
-cd /home/szaboger/Kijelzo || exit 1
-/home/szaboger/Kijelzo/.venv/bin/python /home/szaboger/Kijelzo/main.py
+cd "$HOME/Kijelzo" || exit 1
+"$HOME/Kijelzo/.venv/bin/python" "$HOME/Kijelzo/main.py"
