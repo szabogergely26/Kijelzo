@@ -1,0 +1,9 @@
+[Unit]
+Description=Laptop panel (eDP) háttérvilágítás elsötétítése (kézi kapcsoló, plasmoid)
+Documentation=https://github.com/szaboger/Kijelzo
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/monitor-config/edp-blank.sh set
+ExecStop=/usr/lib/monitor-config/edp-blank.sh restore
