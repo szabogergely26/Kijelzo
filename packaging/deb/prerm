@@ -1,0 +1,15 @@
+#!/bin/bash
+set -e
+
+# Csomag eltávolítása előtt: ha a felhasználó éppen használja is a widgetet
+# (a Plasma asztalon/panelen), a fájlok törlése után a gyorsítótár frissítése
+# nélkül a widget "szellemként" ott maradhatna a következő bejelentkezésig.
+# Ugyanaz a nem-kritikus, csak-ha-elérhető logika, mint a postinst-ben.
+
+if command -v kbuildsycoca6 >/dev/null 2>&1; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+elif command -v kbuildsycoca5 >/dev/null 2>&1; then
+    kbuildsycoca5 --noincremental >/dev/null 2>&1 || true
+fi
+
+exit 0

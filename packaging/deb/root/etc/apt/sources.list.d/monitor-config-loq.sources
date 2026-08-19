@@ -1,0 +1,6 @@
+Types: deb
+URIs: https://szabogergely26.github.io/Kijelzo/
+Suites: lenovo-loq
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/monitor-config-archive-keyring.gpg

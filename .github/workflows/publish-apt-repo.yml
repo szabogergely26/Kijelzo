@@ -1,0 +1,88 @@
+name: Publish Monitor Config LOQ APT repository
+
+on:
+  push:
+    branches:
+      - Lenovo-LOQ
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  publish-apt-repo:
+    name: Build and publish LOQ APT repository
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install repository tools
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev apt-utils
+
+      - name: Import GPG signing key
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          set -e
+          echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: Build DEB package
+        run: |
+          set -e
+          chmod +x packaging/deb/build_deb.sh
+          packaging/deb/build_deb.sh
+
+      - name: Create APT repository
+        run: |
+          set -e
+
+          mkdir -p repo/pool/main
+          mkdir -p repo/dists/lenovo-loq/main/binary-amd64
+
+          cp dist/*.deb repo/pool/main/
+
+          cd repo
+
+          dpkg-scanpackages --arch all pool /dev/null \
+            > dists/lenovo-loq/main/binary-amd64/Packages
+
+          gzip -k -f \
+            dists/lenovo-loq/main/binary-amd64/Packages
+
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="Monitor Config LOQ" \
+            -o APT::FTPArchive::Release::Label="Monitor Config LOQ" \
+            -o APT::FTPArchive::Release::Suite="lenovo-loq" \
+            -o APT::FTPArchive::Release::Codename="lenovo-loq" \
+            -o APT::FTPArchive::Release::Architectures="amd64" \
+            -o APT::FTPArchive::Release::Components="main" \
+            -o APT::FTPArchive::Release::Description="APT repository for Monitor Config Lenovo LOQ" \
+            release dists/lenovo-loq \
+            > dists/lenovo-loq/Release
+
+          gpg --batch --yes \
+            --local-user D35CCC621D8AFC5C \
+            --clearsign \
+            --output dists/lenovo-loq/InRelease \
+            dists/lenovo-loq/Release
+
+      - name: Create GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: repo
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

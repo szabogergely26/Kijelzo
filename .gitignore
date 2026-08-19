@@ -1,0 +1,21 @@
+# Python / virtuális környezet:
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+
+
+# Ideiglenes és napló fájlok:
+*.log
+*.bak
+*.tmp
+.DS_Store
+.vscode/
+
+
+
+# Build termékek:
+build/
+dist/
+*.deb

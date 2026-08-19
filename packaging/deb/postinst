@@ -1,0 +1,21 @@
+#!/bin/bash
+set -e
+
+# A "org.szaboger.kijelzovalto" plasmoid a /usr/share/plasma/plasmoids alá
+# kerül telepítéskor -- ez a Plasma rendszerszintű widget-könyvtára, ehhez
+# NEM kell kpackagetool6-tal külön "telepíteni", Plasma automatikusan
+# megtalálja innen.
+#
+# Ahhoz azonban, hogy egy MÁR FUTÓ Plasma munkamenet is azonnal észrevegye
+# (bejelentkezés/plasmashell-újraindítás nélkül), frissítjük a KDE
+# sycoca (plugin-)gyorsítótárát, ha elérhető a parancs. Ha a gép nem KDE
+# Plasma-t futtat, ez a lépés egyszerűen kimarad, a csomag telepítése
+# emiatt nem hiúsul meg.
+
+if command -v kbuildsycoca6 >/dev/null 2>&1; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+elif command -v kbuildsycoca5 >/dev/null 2>&1; then
+    kbuildsycoca5 --noincremental >/dev/null 2>&1 || true
+fi
+
+exit 0
