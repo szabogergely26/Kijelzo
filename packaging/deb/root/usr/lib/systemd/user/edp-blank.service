@@ -1,9 +1,8 @@
 [Unit]
-Description=Laptop panel (eDP) háttérvilágítás elsötétítése (kézi kapcsoló, plasmoid)
+Description=Laptop panel (eDP) automatikus elsötétítése idle esetén (kézi kapcsoló, plasmoid)
 Documentation=https://github.com/szaboger/Kijelzo
 
 [Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/lib/monitor-config/edp-blank.sh set
-ExecStop=/usr/lib/monitor-config/edp-blank.sh restore
+Type=simple
+ExecStart=/usr/lib/monitor-config/edp-blank.sh watch
+TimeoutStopSec=5
