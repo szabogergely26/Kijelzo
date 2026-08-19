@@ -4,7 +4,7 @@ Részletesebb hibaleírás - Napló: [changelog.md](changelog.md)
 
 A **Monitor-config** egy saját használatra készült, PyQt5-alapú kijelzőprofil-váltó KDE Plasma környezethez.
 
-A program célja, hogy a laptop kijelzője, a TV és a Soundbar között gyorsan, biztonságosan és ismételhetően lehessen váltani anélkül, hogy minden alkalommal kézzel kellene `xrandr` vagy `kscreen-doctor` parancsokat futtatni.
+A program célja, hogy a laptop kijelzője, a TV és a Soundbar között gyorsan, biztonságosan és ismételhetően lehessen váltani anélkül, hogy minden alkalommal kézzel kellene `kscreen-doctor` parancsokat futtatni.
 
 ## A Változásokat és leírásukat a [changelog](changelog.md) tartalmazza
 
@@ -16,20 +16,30 @@ A program célja, hogy a laptop kijelzője, a TV és a Soundbar között gyorsan
 
 A program jelenleg használható, telepíthető alkalmazásként működik.
 
-Támogatott munkamenetek:
+A profilváltás kizárólag a KDE **KScreen** alrendszerén (`kscreen-doctor`) keresztül
+történik. Ez X11 és Wayland munkamenet alatt is elérhető KDE Plasma alatt, ezért a
+programnak nem kell külön ágon kezelnie a két munkamenet-típust — csak az fontos, hogy
+`kscreen-doctor` elérhető legyen.
 
-- **X11** – `xrandr` használatával
-- **Wayland** – `kscreen-doctor` használatával
+A működés Lenovo ThinkPad és Lenovo LOQ gépen is tesztelve lett. A konkrét kimenetnevek
+gépenként eltérhetnek, de ez nem számít: a program a kimeneteket **nem névből**, hanem a
+**csatlakoztatott kijelző szerepéből** (laptop-panel / legnagyobb felbontású külső = TV /
+kisebb felbontású külső = Soundbar) ismeri fel élőben, minden alkalommal.
 
-A működés Lenovo ThinkPad és Lenovo LOQ gépen is tesztelve lett.  
-A konkrét profilok és kimenetnevek gépenként eltérhetnek, ezért a program a kijelzők felismerését és a profilok alkalmazását külön kezeli.
+> **Gépek közötti eltérés:** eredetileg egy közös kódbázis lett volna mindkét gépen
+> (LOQ és ThinkPad), de ez a gyakorlatban nem vált be maradéktalanul (pl. eltérő
+> hardveres sajátosságok, kábelezés). Emiatt jelenleg gépenként külön git ág tartja a
+> saját finomhangolásokat: a `master`/`main` ág a LOQ-n futó verzió, a
+> `Lenovo-ThinkPad` ág a ThinkPad-re szabott verzió. A gépfüggetlen fő logika
+> (kimenetfelismerés, profilszámítás) mindkét ágon közös marad, csak a gép-specifikus
+> apró eltérések (pl. `APP_CHANNEL`) térnek el áganként.
 
 ## Fő funkciók
 
 - kijelzőprofilok alkalmazása grafikus felületről;
-- X11 és Wayland munkamenet felismerése;
-- `xrandr`-alapú profilkezelés X11 alatt;
-- `kscreen-doctor`-alapú profilkezelés Wayland alatt;
+- kimenetek felismerése a csatlakoztatott kijelző szerepe (laptop/TV/soundbar) alapján,
+  a kimenet nevétől függetlenül;
+- `kscreen-doctor`-alapú profilkezelés (X11 és Wayland alatt egyaránt);
 - laptop-, TV- és Soundbar-kimenetek kezelése;
 - biztonságos hibakezelés hiányzó vagy ismeretlen kijelzőkiosztás esetén;
 - naplózás hibakereséshez;
@@ -49,19 +59,21 @@ Ez különösen fontos a Soundbar esetén, amely HDMI- vagy DisplayPort-eszközk
 
 Ha a felismeréshez szükséges adatok hiányoznak vagy nem értelmezhetők, a program nem alkalmaz bizonytalan profilt.
 
-## X11 működés
+## KScreen működés
 
-X11 alatt a program az `xrandr` parancsot használja.
+A program minden támogatott munkamenetben a `kscreen-doctor` parancsot használja, X11
+alatt is (a KDE Plasma X11-en is biztosítja a KScreen-backendet, nem csak Wayland alatt).
 
 A kijelzők felismerése történhet:
 
-- élő `xrandr`-lekérdezésből;
-- mentett `xrandr`-kimenetből.
+- élő `kscreen-doctor -o`-lekérdezésből (elsődleges, minden alkalommal ez fut le előbb);
+- mentett `kscreen-doctor -o`-kimenetből (csak akkor, ha az élő azonosítás nem
+  egyértelmű, pl. a laptop-panel nem ismerhető fel egyértelműen).
 
 A mentett felismerési fájl alapértelmezett helye:
 
 ```text
-~/.config/monitor-config/xrandr-input.txt
+~/.config/monitor-config/kscreen-input.txt
 ```
 
 Ez lehetővé teszi, hogy egy korábban elmentett kijelzőállapot alapján lehessen tesztelni a felismerést és a profilokat anélkül, hogy minden kijelzőt fizikailag újra csatlakoztatni kellene.
@@ -70,26 +82,16 @@ Példa mentésre:
 
 ```bash
 mkdir -p ~/.config/monitor-config
-xrandr --query > ~/.config/monitor-config/xrandr-input.txt
+kscreen-doctor -o > ~/.config/monitor-config/kscreen-input.txt
 ```
 
-A fájl tartalma kézzel is bemásolható.
-
-## Wayland működés
-
-Wayland alatt a program a `kscreen-doctor` parancsot használja.
-
-Az aktuális kijelzők és módok ellenőrzése:
-
-```bash
-kscreen-doctor -o
-```
-
-A program a Wayland-profilok alkalmazásakor az itt látható kimenetazonosítókat, módokat, pozíciókat és engedélyezési állapotokat használja.
+A fájl tartalma kézzel is bemásolható — a GUI "Kijelzők újrafelvétele" gombja is ezt segíti.
 
 ## Profilok
 
-A profilok gép- és kijelzőkiosztás-függők.
+A profilok szerep-alapúak (laptop / TV / soundbar), nem konkrét kimenetnévhez kötöttek —
+a program minden profilváltáskor élőben állapítja meg, melyik kimenet melyik szerepet
+tölti be az adott gépen és pillanatban.
 
 Tipikus profilok:
 
@@ -97,12 +99,12 @@ Tipikus profilok:
 - laptop + Soundbar;
 - laptop + TV + Soundbar.
 
-A konkrét kimenetnevek például az alábbiak lehetnek:
+A konkrét kimenetnevek gépenként eltérhetnek, például:
 
 ### ThinkPad
 
 ```text
-eDP-1
+eDP
 HDMI-A-0
 DisplayPort-1
 ```
@@ -115,7 +117,7 @@ HDMI-1-0
 DP-1-0
 ```
 
-A program nem feltételezi, hogy minden gépen ugyanazok a kimenetnevek szerepelnek.
+Ezek csak illusztrációk — a program nem feltételezi, hogy egy adott gépen mindig ugyanaz a kimenetnév-készlet, és nem is ezekre a nevekre van "hardwire"-olva.
 
 ## Soundbar-kezelés
 
@@ -132,7 +134,7 @@ A kijelzőprofilok működése és az audioeszköz kiválasztása külön hibafo
 
 ## Biztonságos tesztmód
 
-A program támogat olyan tesztmódot, amelyben kiírja és naplózza a futtatandó parancsokat, de nem módosítja ténylegesen a kijelzőbeállításokat.
+A program támogat olyan tesztmódot, amelyben kiírja és naplózza a futtatandó parancsokat, de nem módosítja ténylegesen a kijelzőbeállításokat — és a profilváltás utáni plasmashell-újraindítást sem futtatja le ténylegesen, csak logolja.
 
 Ez használható például:
 
@@ -181,14 +183,13 @@ Főbb futási függőségek:
 ```text
 Python 3
 PyQt5
-xrandr
 kscreen-doctor
 ```
 
 Debian / KDE alatt szükséges csomagok például:
 
 ```bash
-sudo apt install python3-pyqt5 x11-xserver-utils libkscreen-bin
+sudo apt install python3-pyqt5 libkscreen-bin
 ```
 
 Értesítésekhez és kapcsolódó integrációhoz szükség lehet még:
@@ -209,11 +210,15 @@ Kijelzo/
 ├── monitor_config/
 │   ├── app.py
 │   ├── autodetect.py
+│   ├── cli.py
 │   ├── command_utils.py
+│   ├── config.py
+│   ├── kscreen_input.py
 │   ├── log_utils.py
+│   ├── notifications.py
 │   ├── profiles.py
-│   ├── version_info.py
-│   └── xrandr_input.py
+│   ├── setup_dialog.py
+│   └── version_info.py
 ├── packaging/
 │   └── deb/
 ├── README.md
@@ -222,12 +227,15 @@ Kijelzo/
 
 A modulok fő feladatai:
 
-- `main.py` – alkalmazásindítás;
-- `app.py` – grafikus felület és vezérlés;
-- `autodetect.py` – kijelzők felismerése;
-- `xrandr_input.py` – élő vagy mentett `xrandr`-adatok kezelése;
-- `profiles.py` – kijelzőprofilok és parancsok;
+- `main.py` – alkalmazásindítás és parancssori kapcsolók (`--status`, `--apply`, `--restart-shell`);
+- `app.py` – grafikus felület, kimenetfelismerés és profilszámítás (`build_kscreen_command`);
+- `autodetect.py` – aktuális profil megállapítása egy felismert kijelző-kiosztásból;
+- `kscreen_input.py` – élő vagy mentett `kscreen-doctor -o` kimenet strukturált feldolgozása;
+- `cli.py` – fejnélküli (headless) profilváltás és asztal-helyreállítás parancssorból;
+- `profiles.py` – kijelzőprofilok gépfüggetlen definíciói (szerep-alapú);
 - `command_utils.py` – külső parancsok biztonságos futtatása;
+- `notifications.py` – asztali értesítések (libnotify/KNotification);
+- `setup_dialog.py` – első kijelzőfelvételt segítő párbeszédablak;
 - `log_utils.py` – naplózás;
 - `version_info.py` – verzió- és csatornaadatok.
 
@@ -254,23 +262,15 @@ A napló többek között tartalmazhatja:
 
 ## Hibakeresés
 
-Elsőként az alábbi parancsok kimenetét érdemes ellenőrizni.
-
-### X11
+Elsőként az alábbi parancs kimenetét érdemes ellenőrizni — ez X11 és Wayland munkamenet alatt egyaránt ugyanaz:
 
 ```bash
-echo "$XDG_SESSION_TYPE"
-xrandr --query
-```
-
-### Wayland
-
-```bash
-echo "$XDG_SESSION_TYPE"
 kscreen-doctor -o
 ```
 
-### Programindítás terminálból
+A munkamenet típusa (`echo "$XDG_SESSION_TYPE"`) csak tájékoztató jellegű, a program viselkedését nem befolyásolja.
+
+Programindítás terminálból:
 
 ```bash
 monitor-config
@@ -292,6 +292,6 @@ Tervezett vagy lehetséges további fejlesztések:
 
 ## Megjegyzés
 
-A projekt saját hardverkörnyezethez készült, ezért más gépen a profilok és kimenetnevek módosítására lehet szükség.
+A projekt saját hardverkörnyezethez készült, ezért más gépen a profilok és kimenetnevek módosítására lehet szükség — bár a szerep-alapú felismerés miatt ez a legtöbb esetben magától is működik.
 
 Új gépen vagy új kijelzőkiosztással először mindig a biztonságos tesztmód használata javasolt.
