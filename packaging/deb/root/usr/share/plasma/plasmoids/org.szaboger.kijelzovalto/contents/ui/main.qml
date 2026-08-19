@@ -28,8 +28,9 @@ PlasmoidItem {
 
     // A tényleges kijelző-profilváltást a monitor-config projekt (main.py) végzi,
     // a widget csak meghívja azt --apply-jal — a kapcsolási logika ott marad egy helyen.
-    readonly property string monitorConfigPython: "/home/szaboger/Projects/Kijelzo/.venv/bin/python"
-    readonly property string monitorConfigMain: "/home/szaboger/Projects/Kijelzo/main.py"
+    // $HOME-ot használunk (bash -c alatt bővül ki a futtató felhasználó saját home-jára),
+    // hogy ne legyen egy konkrét felhasználónévre hardcode-olva az útvonal.
+    readonly property string monitorConfigDir: "$HOME/Kijelzo"
 
     readonly property var profileButtons: [
         { name: "Laptop (csak)", label: i18n("💻  Laptop (csak)") },
@@ -38,10 +39,10 @@ PlasmoidItem {
     ]
 
     function applyProfileCommand(profileName) {
-        return monitorConfigPython + " " + monitorConfigMain + " --apply \"" + profileName + "\"";
+        return "bash -c \"" + monitorConfigDir + "/.venv/bin/python " + monitorConfigDir + "/main.py --apply '" + profileName + "'\"";
     }
 
-    readonly property string cmdCurrentProfile: monitorConfigPython + " " + monitorConfigMain + " --status"
+    readonly property string cmdCurrentProfile: "bash -c \"" + monitorConfigDir + "/.venv/bin/python " + monitorConfigDir + "/main.py --status\""
     property string currentProfileName: i18n("Lekérdezés…")
 
     Plasmoid.icon: "video-display"
@@ -84,7 +85,7 @@ PlasmoidItem {
                 root.refreshStatus();
             } else if (sourceName === root.cmdCurrentProfile) {
                 root.currentProfileName = out === "" ? i18n("ismeretlen") : out;
-            } else if (sourceName.indexOf(root.monitorConfigPython) === 0) {
+            } else if (sourceName.indexOf("main.py --apply") !== -1) {
                 root.profileBusy = false;
                 root.refreshStatus();
             }
