@@ -7,6 +7,10 @@
 # azonnal visszaáll, majd a ciklus ismétlődik. Leállításkor (systemctl stop,
 # SIGTERM) a trap biztosítja, hogy ha éppen sötét volt, visszaálljon.
 #
+# Az IDLE_THRESHOLD (és POLL_INTERVAL) értéke a
+# ~/.config/monitor-config/edp-blank.conf fájlból felülírható — ott
+# módosítsd, NE ebben a fájlban (ez .deb-frissítéskor felülíródik).
+#
 # A "Laptop + Soundbar" profilnál a Soundbar csak hang-útvonal, nem valódi
 # kijelző, ott az eDP az egyetlen valós kép — ott ezt a felhasználó nem
 # indítja el. "Laptop + TV + Soundbar" alatt viszont a laptop panelje
@@ -22,9 +26,15 @@ set -euo pipefail
 
 CONFIG_DIR="$HOME/.config/monitor-config"
 STATE_FILE="$CONFIG_DIR/edp-brightness-saved"
+USER_CONF="$CONFIG_DIR/edp-blank.conf"
 
-IDLE_THRESHOLD=10   # mp inaktivitás, ami után elsötétít
+# Alapértékek — a /usr/lib alatti script .deb-frissítéskor felülíródik, ezért
+# a tényleges testreszabás a USER_CONF fájlban él, azt sose írja felül semmi.
+IDLE_THRESHOLD=180  # mp inaktivitás, ami után elsötétít
 POLL_INTERVAL=1     # mp, ilyen gyakran ellenőrzi az idle-időt
+
+# shellcheck source=/dev/null
+[ -f "$USER_CONF" ] && . "$USER_CONF"
 
 backlight_dir="$(find /sys/class/backlight -mindepth 1 -maxdepth 1 -print -quit)"
 if [ -z "$backlight_dir" ]; then
