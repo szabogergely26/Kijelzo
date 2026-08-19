@@ -7,6 +7,65 @@ projektben hasonló tünet esetén) gyorsan visszakereshető legyen.
 
 
 
+## 2026-08-19
+
+### Hiba: symlinkelt plasmoid nem jelent meg a "Widgetek hozzáadása" listában
+
+**Tünet:** A `org.szaboger.kijelzovalto` plasmoidot fejlesztés közben (még
+`.deb` csomagolás előtt) symlinkkel kötöttük be a repóból ide:
+`~/.local/share/plasma/plasmoids/org.szaboger.kijelzovalto` (a repóbeli
+`packaging/deb/root/usr/share/plasma/plasmoids/...` mappára mutatva), majd
+`kbuildsycoca6 --noincremental`-t futtattunk, és `plasmashell`-t is
+újraindítottunk. A `kpackagetool6 --type Plasma/Applet --show
+org.szaboger.kijelzovalto` és a `plasmawindowed org.szaboger.kijelzovalto`
+mindkettő hibátlanul megtalálta és be is töltötte a widgetet — vagyis a
+csomag maga (metadata.json, QML) érvényes és betölthető volt. Ennek
+ellenére a KDE "Widgetek hozzáadása" (Add Widgets) párbeszédablak
+keresőjében sehogy nem jelent meg, sem névre, sem kulcsszóra keresve, sem
+plasmashell-újraindítás után.
+
+**Ok:** A `kpackagetool6 --show` és a `plasmawindowed` közvetlen,
+ID-alapú csomag-feloldást használ (megkapják a plasmoid azonosítóját, és
+azt egyenesen megkeresik a szokásos csomaggyökerekben) — ez a keresési út
+követi a symlinket. A "Widgetek hozzáadása" lista viszont egy teljes
+könyvtár-bejárással épül fel (az összes elérhető Plasma/Applet csomag
+felsorolásával), és ez az enumerálás valamiért kihagyja a symlinkelt
+mappákat — a symlink emiatt "láthatatlan" marad kifejezetten ebben a
+listázási útvonalban, minden más (ID-alapú) elérés számára viszont
+tökéletesen működik.
+
+**Hibakeresés menete (röviden):** `kbuildsycoca6` és plasmashell-restart
+után is hiányzott a keresőből → `kpackagetool6 --show <id>` és
+`plasmawindowed <id>` viszont hibátlanul megtalálta/betöltötte → ez
+kizárta, hogy a metadata.json vagy a QML lenne hibás, és ráirányította a
+figyelmet magára a symlinkes telepítési módra mint különálló, a listázás
+szempontjából eltérően viselkedő tényezőre.
+
+**Javítás:** A symlink helyett valódi (másolt) telepítés
+`kpackagetool6`-val:
+
+```bash
+rm ~/.local/share/plasma/plasmoids/org.szaboger.kijelzovalto   # ha symlink volt
+kpackagetool6 --type Plasma/Applet --install \
+    ~/Kijelzo/packaging/deb/root/usr/share/plasma/plasmoids/org.szaboger.kijelzovalto
+kbuildsycoca6 --noincremental
+kquitapp5 plasmashell || kquitapp6 plasmashell; kstart5 plasmashell || kstart6 plasmashell
+```
+
+Ezután a widget rendesen megjelent és felvehető volt panelre/asztalra is.
+QML-szerkesztés után újra kell futtatni: `kpackagetool6 --type
+Plasma/Applet --upgrade <útvonal>` (a `--install` már meglévő csomagnál
+hibával elutasítja a felülírást).
+
+**Tanulság:** Plasmoid-fejlesztésnél a gyors előnézethez
+(`plasmawindowed <id>`) és az ID-alapú lekérdezéshez
+(`kpackagetool6 --show`) a symlinkes bekötés tökéletesen elég — de a
+tényleges "Widgetek hozzáadása" listázást csak valódi
+`kpackagetool6 --install`/`--upgrade`-es telepítéssel érdemes tesztelni,
+különben a hiányzó widget könnyen csomag-/metadata-hibának tűnhet, holott
+csak a listázás nem követi a symlinket.
+
+
 ## 2026-08-03
 
 ### Hiba: profilváltás után a teljes KDE felület angolra váltott
