@@ -8,6 +8,7 @@ on:
       - main
       - Preview
       - Lenovo-LOQ
+      - Lenovo-ThinkPad
 
 jobs:
   build-deb:

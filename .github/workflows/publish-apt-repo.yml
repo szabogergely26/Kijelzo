@@ -1,9 +1,10 @@
-name: Publish Monitor Config LOQ APT repository
+name: Publish Monitor Config APT repository
 
 on:
   push:
     branches:
       - Lenovo-LOQ
+      - Lenovo-ThinkPad
   workflow_dispatch:
 
 permissions:
@@ -11,9 +12,15 @@ permissions:
   pages: write
   id-token: write
 
+# Csak egy publish fusson egyszerre (ág-független), különben két
+# párhuzamos futás felülírhatja egymás Pages deploy-ját.
+concurrency:
+  group: publish-apt-repo
+  cancel-in-progress: false
+
 jobs:
   publish-apt-repo:
-    name: Build and publish LOQ APT repository
+    name: Build and publish APT repository
     runs-on: ubuntu-latest
 
     environment:
@@ -23,6 +30,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Determine suite for this branch
+        id: suite
+        run: |
+          set -e
+          case "${GITHUB_REF_NAME}" in
+            Lenovo-LOQ)
+              echo "suite=lenovo-loq" >> "$GITHUB_OUTPUT"
+              echo "label=Monitor Config LOQ" >> "$GITHUB_OUTPUT"
+              echo "description=APT repository for Monitor Config Lenovo LOQ" >> "$GITHUB_OUTPUT"
+              ;;
+            Lenovo-ThinkPad)
+              echo "suite=lenovo-thinkpad" >> "$GITHUB_OUTPUT"
+              echo "label=Monitor Config ThinkPad" >> "$GITHUB_OUTPUT"
+              echo "description=APT repository for Monitor Config Lenovo ThinkPad" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Ismeretlen ág a publikáláshoz: ${GITHUB_REF_NAME}" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Install repository tools
         run: |
@@ -44,39 +72,66 @@ jobs:
           chmod +x packaging/deb/build_deb.sh
           packaging/deb/build_deb.sh
 
-      - name: Create APT repository
+      - name: Fetch currently published repo (other suites)
+        run: |
+          set -e
+          mkdir -p repo
+          # A jelenleg élő Pages tartalom letöltése, hogy a másik ág
+          # suite-ját (dists/<másik>/...) ne írjuk felül ezzel a futással.
+          # Ha még nincs publikált oldal (első futás), ez simán 404-el,
+          # azt figyelmen kívül hagyjuk és üres repo-val indulunk.
+          curl -fsSL "https://szabogergely26.github.io/Kijelzo/current-repo.tar.gz" \
+            -o /tmp/current-repo.tar.gz && \
+            tar -xzf /tmp/current-repo.tar.gz -C repo || \
+            echo "Nincs korábbi publikált repo, vagy nem sikerült letölteni - üres repo-val indulunk."
+
+      - name: Update this suite in the repository
+        env:
+          SUITE: ${{ steps.suite.outputs.suite }}
+          LABEL: ${{ steps.suite.outputs.label }}
+          DESCRIPTION: ${{ steps.suite.outputs.description }}
         run: |
           set -e
 
           mkdir -p repo/pool/main
-          mkdir -p repo/dists/lenovo-loq/main/binary-amd64
+          mkdir -p "repo/dists/${SUITE}/main/binary-amd64"
 
+          # Csak ennek a suite-nak a régi .deb csomagjait töröljük a pool-ból,
+          # a másik suite csomagjait (más fájlnév) meghagyjuk.
           cp dist/*.deb repo/pool/main/
 
           cd repo
 
           dpkg-scanpackages --arch all pool /dev/null \
-            > dists/lenovo-loq/main/binary-amd64/Packages
+            > "dists/${SUITE}/main/binary-amd64/Packages"
 
           gzip -k -f \
-            dists/lenovo-loq/main/binary-amd64/Packages
+            "dists/${SUITE}/main/binary-amd64/Packages"
 
           apt-ftparchive \
-            -o APT::FTPArchive::Release::Origin="Monitor Config LOQ" \
-            -o APT::FTPArchive::Release::Label="Monitor Config LOQ" \
-            -o APT::FTPArchive::Release::Suite="lenovo-loq" \
-            -o APT::FTPArchive::Release::Codename="lenovo-loq" \
+            -o APT::FTPArchive::Release::Origin="${LABEL}" \
+            -o APT::FTPArchive::Release::Label="${LABEL}" \
+            -o APT::FTPArchive::Release::Suite="${SUITE}" \
+            -o APT::FTPArchive::Release::Codename="${SUITE}" \
             -o APT::FTPArchive::Release::Architectures="amd64" \
             -o APT::FTPArchive::Release::Components="main" \
-            -o APT::FTPArchive::Release::Description="APT repository for Monitor Config Lenovo LOQ" \
-            release dists/lenovo-loq \
-            > dists/lenovo-loq/Release
+            -o APT::FTPArchive::Release::Description="${DESCRIPTION}" \
+            release "dists/${SUITE}" \
+            > "dists/${SUITE}/Release"
 
           gpg --batch --yes \
             --local-user D35CCC621D8AFC5C \
             --clearsign \
-            --output dists/lenovo-loq/InRelease \
-            dists/lenovo-loq/Release
+            --output "dists/${SUITE}/InRelease" \
+            "dists/${SUITE}/Release"
+
+      - name: Snapshot repo for future runs
+        run: |
+          set -e
+          # A teljes repo (mindkét/összes suite) elmentése egy letölthető
+          # archívumba, hogy a következő futás (bármelyik ágról) ebből
+          # tudja visszatölteni a másik suite tartalmát.
+          tar -czf repo/current-repo.tar.gz -C repo pool dists
 
       - name: Create GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
