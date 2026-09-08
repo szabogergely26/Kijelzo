@@ -477,7 +477,7 @@ class AboutDialog(QDialog):
         text = f"""
 <h2 style="margin-bottom:0">{APP_NAME}</h2>
 <div>Verzió: <b>{APP_VERSION}</b></div>
-<p><b>Lenovo-LOQ</b> laptop-hoz tartozik</p>
+<p><b>Lenovo-ThinkPad</b> laptop-hoz tartozik</p>
 <hr/>
 <p>Gyors kijelző-profil váltó KDE Wayland/X11 környezethez.</p>
 
