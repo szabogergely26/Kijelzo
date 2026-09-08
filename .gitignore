@@ -19,3 +19,8 @@ __pycache__/
 build/
 dist/
 *.deb
+
+# Tömörített fájlok
+*.zip
+*.7zip
+*.tar.gz
