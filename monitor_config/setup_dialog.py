@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFrame,
@@ -51,10 +51,10 @@ egyszerűen frissítsd újra ezt a fájlt az aktuális
         view = QTextBrowser(self)
         view.setOpenExternalLinks(True)
         view.setHtml(text)
-        view.setFrameShape(QFrame.NoFrame)
+        view.setFrameShape(QFrame.Shape.NoFrame)
 
-        btns = QDialogButtonBox(QDialogButtonBox.Close, parent=self)
-        btns.button(QDialogButtonBox.Close).setText("Bezárás")
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, parent=self)
+        btns.button(QDialogButtonBox.StandardButton.Close).setText("Bezárás")
         btns.rejected.connect(self.reject)
 
         lay = QVBoxLayout(self)

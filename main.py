@@ -27,7 +27,7 @@ def main() -> int:
 
         return apply_profile_headless(profile_name)
 
-    from monitor_config.app import main as gui_main
+    from monitor_config.main_window import main as gui_main
 
     gui_main()
     return 0

@@ -2,7 +2,7 @@
 Categories=Utility;
 Comment[hu_HU]=Python venv + PyQt5 telepítése a Kijelzo-hoz
 Comment=Python venv + PyQt5 telepítése a Kijelzo-hoz
-Exec=konsole -e bash -c /home/szaboger/Projects/Kijelzo/install-venv.sh
+Exec=konsole -e bash -c /home/szaboger/Projects-helyi/Kijelzo/install-venv.sh
 GenericName[hu_HU]=
 GenericName=
 Icon=utilities-terminal
